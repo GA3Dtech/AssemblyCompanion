@@ -13,6 +13,8 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/commands.py` | Gui commands (thin wrappers that call the modules below) |
 | `freecad/assembly_companion/freeze.py` | Freeze / Relink / Delete joints / Diagnostic / Repair |
 | `freecad/assembly_companion/explorer.py` | Thumbnail explorer (central tab) and "Insert component (visual)" dock |
+| `freecad/assembly_companion/duplicate.py` | Duplicate components (clone Links in the assembly tree) |
+| `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
 | `freecad/assembly_companion/selection_sets.py` | Named selection sets stored in the document |
 | `freecad/assembly_companion/resources/icons/` | SVG icons |
@@ -50,6 +52,12 @@ FreeCAD restart (or a module reload).
   referenced by another one (an App::Link of the same file, a boolean, a
   binder…) is dropped from it. Walk containers and follow same-file Links
   when looking for parts in a file.
+- Active assembly: FreeCAD 26.x stores it under the view's active-object key
+  `"assembly"`, 1.0 under `"part"`. Always check both (see `ACTIVE_KEYS` in
+  `reactivate.py`).
+- WorkbenchManipulator `{"append": cmd, "toolBar": name}` only works on a toolbar
+  that already exists in the target workbench (unknown names are silently
+  ignored): Companion commands are appended to the built-in "Assembly" toolbar.
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

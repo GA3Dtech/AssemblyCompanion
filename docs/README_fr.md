@@ -148,7 +148,7 @@ Ce qui change : le dossier est lu avec `os.scandir` (sous Windows, taille et dat
 
 - Explorateur : « Figer à l'insertion » ignore les fichiers dont l'objet principal est un Std_Part (multi-corps), comme le figeage.
 
-- Seuls les Links vers des **Body / Part::Feature** sont figés. Les conteneurs Std_Part multi-corps sont ignorés, avec un message.
+- Les Links vers des **Body / Part::Feature** et vers des **conteneurs Std_Part** sont figés. Un conteneur devient un Std_Part figé (`Fige_<nom>`, dans `Solides_figes`) qui contient une copie morte de chaque Body à sa place ; les Part imbriqués sont figés aussi. Les liaisons qui visent un corps du conteneur (`CoteA.Body001.Face6`) sont réécrites vers sa copie (`CoteA.Fige_Body001.Face6`), et inversement par Relier. Les autres objets du conteneur (esquisses, Links internes…) sont ignorés, avec un message.
 - La mise à jour automatique d'une copie figée sans relier (recalage géométrique) a été abandonnée : les positions stockées dans les liaisons n'étaient pas recalculées. Relier, réparer puis refiger est la méthode fiable.
 - Le gizmo d'Aligner reste expérimental.
 - Les sous-assemblages figés imbriqués et le passage vers une autre version de FreeCAD restent à tester sur des projets réels.

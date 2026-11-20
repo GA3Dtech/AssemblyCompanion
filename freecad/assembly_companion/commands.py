@@ -82,6 +82,14 @@ def _repair():
     _module("freeze").reparer(App.ActiveDocument)
 
 
+def _duplicate():
+    _module("duplicate").duplicate(App.ActiveDocument)
+
+
+def _reactivate():
+    _module("reactivate").reactivate(App.ActiveDocument)
+
+
 def _align():
     _module("align").show()
 
@@ -124,6 +132,16 @@ COMMANDS = {
         _repair, "Repair.svg", "Repair frozen copies",
         "Clean frozen copies made by early versions and rewrite their "
         "references."),
+    "AssemblyCompanion_Duplicate": _Command(
+        _duplicate, "Duplicate.svg", "Duplicate components",
+        "Clone the selected components in the assembly: new instances of the "
+        "same parts (frozen or not), same place, without joints. Source files "
+        "are not touched."),
+    "AssemblyCompanion_Reactivate": _Command(
+        _reactivate, "Reactivate.svg", "Reactivate assembly",
+        "Unlock an assembly that can no longer be activated (Assembly commands "
+        "greyed out): close a stuck task panel, leave a pending edit, clear "
+        "stale active objects, then activate the selected assembly."),
     "AssemblyCompanion_Align": _Command(
         _align, "Align.svg", "Align elements",
         "Place a body by clicking an element on it, then an element on another "
@@ -144,8 +162,10 @@ COMMANDS = {
 }
 
 TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
-                   "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic"]
-TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Explorer",
+                   "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
+                   "AssemblyCompanion_Reactivate"]
+TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
+                   "AssemblyCompanion_Explorer",
                    "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets"]
 MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]
         + TOOLBAR_LIBRARY)

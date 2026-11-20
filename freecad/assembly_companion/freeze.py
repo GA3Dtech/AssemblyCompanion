@@ -7,7 +7,9 @@ FreeCAD's built-in Assembly workbench, A2plus style.
 Principle:
   * FREEZE : every App::Link pointing to a Body in ANOTHER file is retargeted
              to a "dead" copy (Part::Feature, plain BREP solid without any
-             topological history) stored in the assembly file. The assembly
+             topological history) stored in the assembly file. A Link to an
+             App::Part gets a frozen App::Part holding a dead copy of each
+             of its Bodies, at the same place. The assembly
              no longer depends on the source files, nor on how a future
              FreeCAD version recomputes them.
   * RELINK : the opposite, the Link points again to the Body of the source
@@ -83,6 +85,32 @@ def reecrire_sub(sub, k, remap=None):
     return prefixe + elem
 
 
+def reecrire_sub_chemins(sub, k, chemins):
+    """Same as reecrire_sub, for a Link to an App::Part container: the path
+    inside the container is kept, each object name translated through
+    `chemins` = {old name: (new name, sub-mapping or None)}. A None
+    sub-mapping marks a leaf (frozen solid, origin feature): what follows it
+    in the path (features inside a Body) is dropped, like reecrire_sub does.
+    Unknown names are kept as they are (the reference shows up as broken in
+    the diagnostic instead of silently pointing elsewhere)."""
+    objets, _mapped, elem = decouper_sub(sub)
+    chemin = list(objets[:k + 1])
+    niveau = chemins
+    for nom in objets[k + 1:]:
+        if niveau is None:
+            break
+        if nom not in niveau:
+            chemin.append(nom)
+            niveau = {}
+            continue
+        nouveau, niveau = niveau[nom]
+        chemin.append(nouveau)
+    prefixe = '.'.join(chemin)
+    if prefixe:
+        prefixe += '.'
+    return prefixe + elem
+
+
 # --------------------------------------------------------------------------
 #  FreeCAD helpers
 # --------------------------------------------------------------------------
@@ -98,6 +126,27 @@ def _est_copie_figee(o):
         and 'FigeObjet' in o.PropertiesList
 
 
+def _est_conteneur_fige(o):
+    """Frozen copy of an App::Part container (holds frozen copies)."""
+    return o is not None and not _est_lien(o) and o.isDerivedFrom('App::Part') \
+        and 'FigeObjet' in o.PropertiesList
+
+
+def _est_fige(o):
+    return _est_copie_figee(o) or _est_conteneur_fige(o)
+
+
+def _conteneur_racine(o):
+    """Outermost frozen container holding `o`, or None."""
+    racine = None
+    p = o.getParentGeoFeatureGroup() if o is not None else None
+    while p is not None:
+        if _est_conteneur_fige(p):
+            racine = p
+        p = p.getParentGeoFeatureGroup()
+    return racine
+
+
 def liens_externes(doc, selection=None):
     """Links pointing to another document (candidates for freezing)."""
     objs = doc.Objects if selection is None else selection
@@ -106,9 +155,9 @@ def liens_externes(doc, selection=None):
 
 
 def liens_figes(doc, selection=None):
-    """Links pointing to a frozen copy (candidates for relinking)."""
+    """Links pointing to a frozen copy or container (candidates for relinking)."""
     objs = doc.Objects if selection is None else selection
-    return [o for o in objs if _est_lien(o) and _est_copie_figee(o.LinkedObject)]
+    return [o for o in objs if _est_lien(o) and _est_fige(o.LinkedObject)]
 
 
 def _index_lien(base, objets, lien):
@@ -181,9 +230,10 @@ def references_via(lien):
     return res
 
 
-def appliquer_reecriture(lien, remap=None, nouvelle_cible=None):
+def appliquer_reecriture(lien, remap=None, nouvelle_cible=None, chemins=None):
     """Rewrite every reference going through `lien`, after optionally
-    retargeting the Link. Each reference is CLEARED then written again, even
+    retargeting the Link. With `chemins` (Link to an App::Part container),
+    the path inside the target is translated instead of dropped. Each reference is CLEARED then written again, even
     when its text does not change: otherwise FreeCAD keeps internally the
     topological name computed on the previous target, saves it, and cannot
     resolve it on reopening (element marked '?', broken joint).
@@ -197,7 +247,8 @@ def appliquer_reecriture(lien, remap=None, nouvelle_cible=None):
     for (o, p, t), items in par_prop.items():
         refs = _lire(o, p, t)
         for i, j, k, sub in items:
-            refs[i][1][j] = reecrire_sub(sub, k, remap)
+            refs[i][1][j] = (reecrire_sub_chemins(sub, k, chemins) if chemins is not None
+                             else reecrire_sub(sub, k, remap))
             n += 1
         try:
             setattr(o, p, [] if 'List' in t else None)   # flush hidden names
@@ -255,15 +306,36 @@ def _objet_source(copie, doc_src):
 #  FREEZE
 # --------------------------------------------------------------------------
 
-def _trouver_copie(doc, src):
+def _trouver_copie(doc, src, parent=None, test=None):
     """Existing frozen copy of `src` in the assembly (one copy per source
-    object, shared by all its instances)."""
+    object, shared by all its instances). `parent` is the frozen container
+    the copy belongs to (None: a stand-alone copy, outside any container), so
+    a Body frozen on its own and the same Body frozen inside its Part get two
+    separate copies."""
+    test = test or _est_copie_figee
     fichier = src.Document.FileName
     for o in doc.Objects:
-        if _est_copie_figee(o) and o.FigeObjet == src.Name and \
-                os.path.basename(o.FigeFichier) == os.path.basename(fichier):
+        if test(o) and o.FigeObjet == src.Name and \
+                os.path.basename(o.FigeFichier) == os.path.basename(fichier) and \
+                o.getParentGeoFeatureGroup() is parent:
             return o
     return None
+
+
+def _proprietes_figeage(obj, src, doc):
+    """Create (once) and fill the source metadata of a frozen object."""
+    for nom in ('FigeFichier', 'FigeFichierRelatif', 'FigeObjet',
+                'FigeLabel', 'FigeDate', 'FigeVersionFC'):
+        if nom not in obj.PropertiesList:
+            obj.addProperty('App::PropertyString', nom, 'Figeage')
+    obj.FigeFichier = src.Document.FileName
+    obj.FigeFichierRelatif = (os.path.relpath(src.Document.FileName,
+                              os.path.dirname(doc.FileName))
+                              if doc.FileName and src.Document.FileName else '')
+    obj.FigeObjet = src.Name
+    obj.FigeLabel = src.Label
+    obj.FigeDate = datetime.datetime.now().isoformat(timespec='seconds')
+    obj.FigeVersionFC = _version_fc()
 
 
 def forme_propre(shape):
@@ -275,34 +347,135 @@ def forme_propre(shape):
     return s
 
 
-def _creer_ou_rafraichir_copie(doc, src):
-    copie = _trouver_copie(doc, src)
+def _creer_ou_rafraichir_copie(doc, src, parent=None):
+    """Frozen copy of the solid `src`. Stand-alone copies are stored hidden in
+    the Solides_figes group (the Link displays them); copies inside a frozen
+    container stay visible, since a Link to a container only shows its
+    visible children."""
+    copie = _trouver_copie(doc, src, parent)
     if copie is None:
         copie = doc.addObject('Part::Feature', 'Fige_' + src.Name)
-        for nom in ('FigeFichier', 'FigeFichierRelatif', 'FigeObjet',
-                    'FigeLabel', 'FigeDate', 'FigeVersionFC'):
-            copie.addProperty('App::PropertyString', nom, 'Figeage')
-        _groupe(doc, GROUPE_COPIES).addObject(copie)
-    # Use the shape SAVED in the source file: no recompute, version independent
+        if parent is None:
+            _groupe(doc, GROUPE_COPIES).addObject(copie)
+        else:
+            parent.addObject(copie)
+    # Use the shape SAVED in the source file: no recompute, version independent.
+    # The shape carries the placement of `src` (position inside its Part).
     copie.Shape = forme_propre(src.Shape)
     copie.Label = 'Fige_' + src.Label
-    copie.FigeFichier = src.Document.FileName
-    copie.FigeFichierRelatif = (os.path.relpath(src.Document.FileName,
-                                os.path.dirname(doc.FileName))
-                                if doc.FileName and src.Document.FileName else '')
-    copie.FigeObjet = src.Name
-    copie.FigeLabel = src.Label
-    copie.FigeDate = datetime.datetime.now().isoformat(timespec='seconds')
-    copie.FigeVersionFC = _version_fc()
+    _proprietes_figeage(copie, src, doc)
     if App.GuiUp:
         try:
-            # The copy itself stays hidden: the Link displays it
-            copie.ViewObject.Visibility = False
+            copie.ViewObject.Visibility = parent is not None
             if hasattr(src, 'ViewObject') and src.ViewObject:
                 copie.ViewObject.ShapeAppearance = src.ViewObject.ShapeAppearance
         except Exception:
             pass
     return copie
+
+
+# --------------------------------------------------------------------------
+#  FREEZE an App::Part container
+# --------------------------------------------------------------------------
+
+def _enfants_directs(part):
+    """Children of an App::Part that are not consumed by a sibling (e.g. the
+    tools of a boolean): the parts the user sees in the container."""
+    groupe = list(part.Group)
+    noms = set(c.Name for c in groupe)
+    return [c for c in groupe
+            if not any(p.Name in noms for p in c.InList if p is not part)]
+
+
+def _est_solide(o):
+    try:
+        return o.isDerivedFrom('Part::Feature') and not _est_lien(o) \
+            and not o.Shape.isNull() and bool(o.Shape.Solids)
+    except Exception:
+        return False
+
+
+def _chemins_origine(origine_src, origine_copie):
+    """Path mapping of an App::Origin and its axes / planes, matched by Role."""
+    if origine_src is None or origine_copie is None:
+        return {}
+    par_role = dict((f.Role, f.Name) for f in origine_copie.OriginFeatures)
+    sous = dict((f.Name, (par_role[f.Role], None))
+                for f in origine_src.OriginFeatures if f.Role in par_role)
+    return {origine_src.Name: (origine_copie.Name, sous)}
+
+
+def _creer_ou_rafraichir_conteneur(doc, src, parent=None):
+    """Frozen copy of the App::Part `src`: an App::Part holding a frozen copy
+    of each Body / solid at its place (nested Parts are frozen recursively).
+    Returns (container, path mapping source name -> copy name) used to
+    rewrite the joint references going through the container."""
+    cont = _trouver_copie(doc, src, parent, test=_est_conteneur_fige)
+    if cont is None:
+        cont = doc.addObject('App::Part', 'Fige_' + src.Name)
+        if parent is None:
+            _groupe(doc, GROUPE_COPIES).addObject(cont)
+        else:
+            parent.addObject(cont)
+    cont.Label = 'Fige_' + src.Label
+    cont.Placement = src.Placement      # matters for nested Parts only
+    _proprietes_figeage(cont, src, doc)
+
+    chemins, gardes = {}, set()
+    for enfant in _enfants_directs(src):
+        if enfant.isDerivedFrom('App::Part'):
+            c, sous = _creer_ou_rafraichir_conteneur(doc, enfant, cont)
+            chemins[enfant.Name] = (c.Name, sous)
+        elif _est_solide(enfant):           # Body, Part::Feature, fasteners...
+            c = _creer_ou_rafraichir_copie(doc, enfant, cont)
+            chemins[enfant.Name] = (c.Name, None)
+        else:
+            if not enfant.isDerivedFrom('App::Origin'):
+                App.Console.PrintWarning(
+                    "Figeage: %s / %s (%s) ignoré dans le conteneur : seuls les Body, "
+                    "solides et Part imbriqués sont figés.\n"
+                    % (src.Label, enfant.Label, enfant.TypeId))
+            continue
+        gardes.add(c.Name)
+    chemins.update(_chemins_origine(getattr(src, 'Origin', None),
+                                    getattr(cont, 'Origin', None)))
+    # Copies of objects removed from the source since the last freeze
+    for o in list(cont.Group):
+        if _est_fige(o) and o.Name not in gardes:
+            _supprimer_fige(doc, o)
+    if App.GuiUp:
+        try:
+            # Hidden at top level (the Link displays it), visible when nested
+            cont.ViewObject.Visibility = parent is not None
+        except Exception:
+            pass
+    return cont, chemins
+
+
+def _supprimer_fige(doc, o):
+    if _est_conteneur_fige(o):
+        for c in list(o.Group):
+            if _est_fige(c):
+                _supprimer_fige(doc, c)
+    App.Console.PrintMessage("Figeage: copie obsolète supprimée : %s\n" % o.Label)
+    doc.removeObject(o.Name)
+
+
+def _chemins_inverses(cont, src):
+    """Path mapping copy name -> source name, to relink a frozen container
+    to its source App::Part (inverse of _creer_ou_rafraichir_conteneur)."""
+    chemins = {}
+    for c in cont.Group:
+        o = src.Document.getObject(c.FigeObjet) if _est_fige(c) else None
+        if o is None:
+            continue
+        if _est_conteneur_fige(c):
+            chemins[c.Name] = (o.Name, _chemins_inverses(c, o))
+        else:
+            chemins[c.Name] = (o.Name, None)
+    chemins.update(_chemins_origine(getattr(cont, 'Origin', None),
+                                    getattr(src, 'Origin', None)))
+    return chemins
 
 
 def figer(doc=None, selection=None):
@@ -316,14 +489,17 @@ def figer(doc=None, selection=None):
     try:
         for lien in liens:
             src = lien.LinkedObject
-            if not src.isDerivedFrom('Part::Feature'):
-                # App::Part containers (several bodies) are not handled yet
+            if src.isDerivedFrom('App::Part'):
+                copie, chemins = _creer_ou_rafraichir_conteneur(doc, src)
+                n = appliquer_reecriture(lien, nouvelle_cible=copie, chemins=chemins)
+            elif src.isDerivedFrom('Part::Feature'):
+                copie = _creer_ou_rafraichir_copie(doc, src)
+                n = appliquer_reecriture(lien, nouvelle_cible=copie)
+            else:
                 App.Console.PrintWarning(
-                    "Figeage: %s -> %s (%s) ignoré : seuls les Body / Part::Feature "
-                    "sont gérés.\n" % (lien.Label, src.Label, src.TypeId))
+                    "Figeage: %s -> %s (%s) ignoré : seuls les Body, Part::Feature "
+                    "et Part sont gérés.\n" % (lien.Label, src.Label, src.TypeId))
                 continue
-            copie = _creer_ou_rafraichir_copie(doc, src)
-            n = appliquer_reecriture(lien, nouvelle_cible=copie)
             App.Console.PrintMessage("Figeage: %s figé (%d références rafraîchies)\n"
                                      % (lien.Label, n))
         doc.recompute()
@@ -353,8 +529,12 @@ def relier(doc=None, selection=None):
                 App.Console.PrintError("Figeage: source introuvable pour %s (%s)\n"
                                        % (lien.Label, copie.FigeFichier))
                 continue
-            # "Face6" stays valid on a Body; flush hidden names of the copy
-            appliquer_reecriture(lien, nouvelle_cible=src)
+            if _est_conteneur_fige(copie):
+                appliquer_reecriture(lien, nouvelle_cible=src,
+                                     chemins=_chemins_inverses(copie, src))
+            else:
+                # "Face6" stays valid on a Body; flush hidden names of the copy
+                appliquer_reecriture(lien, nouvelle_cible=src)
             App.Console.PrintMessage("Figeage: %s relié à %s#%s\n"
                                      % (lien.Label, doc_src.Name, src.Name))
         doc.recompute()
@@ -367,17 +547,18 @@ def relier(doc=None, selection=None):
 # --------------------------------------------------------------------------
 
 def _lien_utile(o, doc):
-    """Assembly Link pointing to an external Body or to a frozen copy."""
+    """Assembly Link pointing to an external Body / Part or to a frozen copy."""
     if not _est_lien(o) or o.Document is not doc or o.LinkedObject is None:
         return False
-    return o.LinkedObject.Document is not doc or _est_copie_figee(o.LinkedObject)
+    return o.LinkedObject.Document is not doc or _est_fige(o.LinkedObject)
 
 
 def selection_liens():
     """Links targeted by the current selection (tree or 3D view).
     - nothing selected               -> None (= whole document)
     - a Link / a face of a part      -> that Link
-    - a frozen copy (Solides_figes)  -> every Link using it
+    - a frozen copy or container
+      (Solides_figes)                -> every Link using it
     - unrelated selection            -> []   (= nothing, never the whole doc)"""
     if not App.GuiUp:
         return None
@@ -404,9 +585,12 @@ def selection_liens():
                 ajouter(utiles[-1])                  # Link closest to the part
                 continue
             for o in chaine:
-                if _est_copie_figee(o):              # frozen copy selected
+                if _est_fige(o):                     # frozen copy selected
+                    # A copy inside a frozen container: the Links use the
+                    # outermost container
+                    cible = _conteneur_racine(o) or o
                     for l in doc.Objects:
-                        if _est_lien(l) and l.LinkedObject is o:
+                        if _est_lien(l) and l.LinkedObject is cible:
                             ajouter(l)
     if not liens:
         App.Console.PrintWarning("Figeage: la sélection ne contient aucune pièce d'assemblage "

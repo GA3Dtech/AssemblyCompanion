@@ -52,10 +52,15 @@ Gui.addWorkbench(AssemblyCompanionWorkbench())
 # --------------------------------------------------------------------------
 
 class _AssemblyWorkbenchManipulator:
-    """Appends the Companion commands to a toolbar of the Assembly workbench
-    when that workbench is active; leaves every other workbench untouched."""
+    """Extends the "Assembly" toolbar of the Assembly workbench with the
+    Companion commands when that workbench is active; leaves every other
+    workbench untouched.
 
-    TOOLBAR = "Assembly Companion"
+    "append" only adds to a toolbar that ALREADY exists in the workbench
+    (FreeCAD silently ignores an unknown toolbar name), so the commands go to
+    the built-in "Assembly" toolbar (untranslated name), after a separator."""
+
+    TOOLBAR = "Assembly"
 
     def modifyToolBars(self):
         try:
@@ -63,7 +68,8 @@ class _AssemblyWorkbenchManipulator:
                 return []
         except Exception:
             return []
-        cmds = commands.TOOLBAR_DURABLE + commands.TOOLBAR_LIBRARY
+        cmds = (["Separator"] + commands.TOOLBAR_DURABLE
+                + ["Separator"] + commands.TOOLBAR_LIBRARY)
         return [{"append": c, "toolBar": self.TOOLBAR} for c in cmds]
 
 

@@ -343,13 +343,16 @@ def _candidates(doc):
 
 
 def _target_container(doc):
-    """Active assembly / Std_Part ('part' active object), or the only
+    """Active assembly / Std_Part ('assembly' or 'part' active object), or the only
     Assembly of the document, or None (document root)."""
     try:
         import FreeCADGui as Gui
-        act = Gui.ActiveDocument.ActiveView.getActiveObject("part")
-        if act is not None and act.Document is doc:
-            return act
+        view = Gui.ActiveDocument.ActiveView
+        # 26.x records the active assembly under "assembly", 1.0 under "part"
+        for key in ("assembly", "part"):
+            act = view.getActiveObject(key)
+            if act is not None and act.Document is doc:
+                return act
     except Exception:
         pass
     asm = [o for o in doc.Objects if o.isDerivedFrom("Assembly::AssemblyObject")]

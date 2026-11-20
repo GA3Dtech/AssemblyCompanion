@@ -13,11 +13,12 @@ The built-in Assembly workbench links parts from their source files (App::Link).
 ### Durable assemblies
 | Command | What it does |
 |---|---|
-| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. |
+| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. Links to a Std_Part container get a frozen Std_Part holding a dead copy of each Body, joints included. |
 | **Relink to sources** | Points frozen parts back to their source file, to edit them. Then freeze again. |
 | **Delete part joints** | Deletes every joint (and grounding) of the selected parts, in one undo step. |
 | **Check frozen assembly** | Reports, for every joint reference, whether it resolves, and on which object and file. |
 | **Repair frozen copies** | Cleans copies made by early versions. |
+| **Reactivate assembly** | Unlocks an assembly that can no longer be activated (Assembly commands greyed out, double-click does nothing): closes a stuck task panel, leaves a pending edit, clears stale active objects, then activates the selected assembly. Reports what it found in the report view. |
 
 Workflow for a modified part: *select it → Relink → edit the source → fix joints → Freeze.*
 
@@ -25,11 +26,12 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | Command | What it does |
 |---|---|
 | **Insert component (visual)** | Dock with thumbnails of every FreeCAD file under your parts folder; click to insert into the active assembly / Std_Part. Source files do not need to be open. Optional "freeze on insert". |
+| **Duplicate components** | Clones the selected components in the assembly tree: new instances of the same parts (frozen or not), at the same place, with the same colours, without joints. Source files are not touched. |
 | **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). |
 | **Align elements** | Place a body by clicking an element on it, then on another body; flip, offset, rotation, optional gizmo. Ideal for static assemblies in a Std_Part. |
 | **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference. Made for exploded STEP files and large assemblies. |
 
-When the built-in **Assembly** workbench is active, the Companion tools also appear in its toolbar area (can be disabled with the boolean parameter `Mod/AssemblyCompanion/ShowInAssemblyWorkbench`).
+When the built-in **Assembly** workbench is active, the Companion tools are appended to its **Assembly** toolbar (can be disabled with the boolean parameter `Mod/AssemblyCompanion/ShowInAssemblyWorkbench`).
 
 ## Installation
 
