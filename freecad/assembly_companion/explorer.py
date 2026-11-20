@@ -265,23 +265,81 @@ def _source_document(path):
         return App.openDocument(path)
 
 
+def _kind(o):
+    """'part', 'body', 'solid', 'group' (container to walk into, not
+    insertable itself) or None. Body is tested before Part::Feature because
+    PartDesign::Body derives from it."""
+    try:
+        if o.isDerivedFrom("App::Part"):
+            return "part"
+        if o.isDerivedFrom("PartDesign::Body"):
+            return "body"
+        if o.isDerivedFrom("App::DocumentObjectGroup"):
+            return "group"
+        if o.isDerivedFrom("Part::Feature") and not o.Shape.isNull() \
+                and o.Shape.Solids:
+            return "solid"
+    except Exception:
+        pass
+    return None
+
+
+def _top_level_children(container):
+    """Children of an App::Part / group that are not consumed by a sibling
+    (e.g. the Box and Cylinder of a Cut): the container-level equivalent of
+    Document.RootObjects."""
+    group = list(getattr(container, "Group", []) or [])
+    members = set(c.Name for c in group)
+    return [c for c in group
+            if not any(p.Name in members for p in c.InList if p is not container)]
+
+
 def _candidates(doc):
-    """Objects of the source file that can be inserted: root App::Part first
-    (e.g. the Part made by PiStock 'wrap bodies'), then Bodies, then other
-    solids."""
-    parts, bodies, others = [], [], []
-    for o in doc.RootObjects:
-        try:
-            if o.isDerivedFrom("App::Part"):
-                parts.append(o)
-            elif o.isDerivedFrom("PartDesign::Body"):
-                bodies.append(o)
-            elif o.isDerivedFrom("Part::Feature") and not o.Shape.isNull() \
-                    and o.Shape.Solids:
-                others.append(o)
-        except Exception:
-            pass
-    return parts + bodies + others
+    """Objects of the source file that can be inserted, as (object, depth)
+    pairs in tree order. Root App::Part first (e.g. the Part made by PiStock
+    'wrap bodies'), then Bodies, then other solids; the content of App::Part
+    containers and groups is listed right after them, so Bodies nested in a
+    Part can be inserted on their own. Links to objects of the same file are
+    followed (their target is no longer a root object). Bodies are not walked
+    into (their features are not insertable components)."""
+    order = {"part": 0, "group": 0, "body": 1, "solid": 2}
+    result, seen = [], set()
+
+    def resolve(o):
+        # An App::Link to an object of the same file hides its target from
+        # RootObjects (e.g. a mirrored copy of a Part): list the target instead
+        if o.isDerivedFrom("App::Link"):
+            try:
+                t = o.getLinkedObject(True)
+            except Exception:
+                t = None
+            return t if t is not None and t is not o and t.Document is doc else None
+        return o
+
+    def walk(objs, depth):
+        objs = [t for t in (resolve(o) for o in objs) if t is not None]
+        typed = [(o, _kind(o)) for o in objs]
+        typed = [(o, k) for o, k in typed if k is not None]
+        typed.sort(key=lambda ok: order[ok[1]])     # stable: keeps tree order
+        for o, k in typed:
+            # Checked here, not when filtering: walking a Part may already have
+            # listed a sibling (e.g. a Body also reached through a root Link)
+            if o.Name in seen:
+                continue
+            seen.add(o.Name)
+            if k == "group":
+                # Not insertable: list its content at the same depth
+                walk(_top_level_children(o), depth)
+                continue
+            result.append((o, depth))
+            if k == "part":
+                walk(_top_level_children(o), depth + 1)
+
+    walk(doc.RootObjects, 0)
+    # Safety net: Parts and Bodies still unreachable from the roots (only
+    # referenced by some other feature) are listed at the end
+    walk([o for o in doc.Objects if _kind(o) in ("part", "body")], 0)
+    return result
 
 
 def _target_container(doc):
@@ -312,15 +370,22 @@ def insert_component(path, parent_widget=None, freeze=False):
     cands = _candidates(src_doc)
     if not cands:
         raise RuntimeError("« %s » ne contient ni Part, ni Body, ni solide." % name)
-    obj = cands[0]
+    obj = cands[0][0]
     if len(cands) > 1:
-        labels = ["%s  (%s)" % (o.Label, o.TypeId.split("::")[-1]) for o in cands]
+        # Indent nested objects to show the tree; add the internal name when
+        # two objects share a label, so every entry is unique
+        dup = set(o.Label for o, _ in cands
+                  if sum(1 for c, _ in cands if c.Label == o.Label) > 1)
+        labels = ["%s%s%s  (%s)" % ("      " * d, o.Label,
+                                    " [%s]" % o.Name if o.Label in dup else "",
+                                    o.TypeId.split("::")[-1])
+                  for o, d in cands]
         choix, ok = QtWidgets.QInputDialog.getItem(
             parent_widget, "Insérer un composant",
             "« %s » contient plusieurs objets :" % name, labels, 0, False)
         if not ok:
             return None
-        obj = cands[labels.index(choix)]
+        obj = cands[labels.index(choix)][0]
     container = _target_container(doc)
     doc.openTransaction("Insérer un composant")
     try:
