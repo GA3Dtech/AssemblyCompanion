@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<package format="1" xmlns="https://wiki.freecad.org/Package_Metadata">
+  <name>Assembly Companion</name>
+  <description>Workshop-grade tools for FreeCAD's built-in Assembly: durable assemblies, visual parts library, selection sets.</description>
+  <version>0.1.0</version>
+  <date>2026-11-20</date>
+  <maintainer email="maintainer@example.invalid">GA3Dtech</maintainer>
+  <author>GA3Dtech</author>
+  <license file="LICENSE">LGPL-2.1-or-later</license>
+  <url type="repository" branch="main">https://github.com/GA3Dtech/AssemblyCompanion</url>
+  <url type="bugtracker">https://github.com/GA3Dtech/AssemblyCompanion/issues</url>
+  <icon>freecad/assembly_companion/resources/icons/AssemblyCompanion.svg</icon>
+  <content>
+    <workbench>
+      <name>Assembly Companion</name>
+      <classname>AssemblyCompanionWorkbench</classname>
+      <subdirectory>./</subdirectory>
+      <icon>freecad/assembly_companion/resources/icons/AssemblyCompanion.svg</icon>
+      <freecadmin>1.0.0</freecadmin>
+      <tag>assembly</tag>
+      <tag>A2plus</tag>
+      <tag>library</tag>
+      <tag>selection</tag>
+      <tag>STEP</tag>
+    </workbench>
+  </content>
+</package>
