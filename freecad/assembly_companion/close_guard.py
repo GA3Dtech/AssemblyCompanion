@@ -35,6 +35,9 @@ dialog lists those parts and offers to:
 
 Can be turned off with the preference WarnOnSourceClose.
 
+The same observer keeps the "unused" mark of frozen copies up to date
+(freeze.marquer_inutilisees) when a part is deleted or after undo / redo.
+
 User-facing texts are in English, translated through i18n.tr().
 """
 
@@ -188,6 +191,21 @@ class _CloseGuard(object):
     def slotActivateDocument(self, doc):
         self._scan(doc)
 
+    # --- unused frozen copies: refresh their mark after a part is deleted or
+    # an undo / redo (deferred, documents must not change inside a signal)
+    def slotDeletedObject(self, obj):
+        try:
+            if obj.isDerivedFrom("App::Link"):
+                _schedule_unused(obj.Document.Name)
+        except Exception:
+            pass
+
+    def slotUndoDocument(self, doc):
+        _schedule_unused(doc.Name)
+
+    def slotRedoDocument(self, doc):
+        _schedule_unused(doc.Name)
+
     def slotDeletedDocument(self, doc):
         try:
             name = doc.Name
@@ -205,6 +223,32 @@ class _CloseGuard(object):
             QtCore.QTimer.singleShot(0, lambda: _guarded(path, label, deps))
         except Exception as exc:
             App.Console.PrintWarning("Assembly Companion: close guard failed (%s)\n" % exc)
+
+
+_unused_pending = set()
+
+
+def _schedule_unused(doc_name):
+    try:
+        from .freeze import GROUPE_COPIES
+        doc = App.getDocument(doc_name)
+        if doc.getObject(GROUPE_COPIES) is None or doc_name in _unused_pending:
+            return
+        _unused_pending.add(doc_name)
+        _QtWidgets, QtCore = _qt()
+        QtCore.QTimer.singleShot(0, lambda: _mark_unused(doc_name))
+    except Exception:
+        pass
+
+
+def _mark_unused(doc_name):
+    _unused_pending.discard(doc_name)
+    try:
+        if doc_name in App.listDocuments():
+            from .freeze import marquer_inutilisees
+            marquer_inutilisees(App.getDocument(doc_name))
+    except Exception as exc:
+        App.Console.PrintWarning("Assembly Companion: unused copies not marked (%s)\n" % exc)
 
 
 def _guarded(path, label, deps):

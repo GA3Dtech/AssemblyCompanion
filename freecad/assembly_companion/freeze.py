@@ -43,6 +43,7 @@ from .i18n import tr
 
 VERSION = "1.0"
 GROUPE_COPIES = "Solides_figes"     # group holding the frozen copies
+GROUPE_INUTILES = "Solides_figes_inutilises"   # sub-group: copies no Link uses
 
 # Matches the trailing element of a subname: "...Face6", "...Edge12", "...Vertex3"
 _RE_ELEM = re.compile(r'(?:^|\.)((?:Face|Edge|Vertex)\d+)$')
@@ -467,6 +468,63 @@ def _supprimer_fige(doc, o):
     doc.removeObject(o.Name)
 
 
+# --------------------------------------------------------------------------
+#  UNUSED FROZEN COPIES
+# --------------------------------------------------------------------------
+
+def _marque(obj, inutile):
+    """Show / remove the "suppressed" overlay icon of the tree on `obj`
+    (App / Gui SuppressibleExtension, FreeCAD 1.1+). The extensions are only
+    added to objects that need the mark; without them nothing is shown but
+    the sub-group still sorts the copies."""
+    if "Suppressed" not in obj.PropertiesList:
+        if not inutile:
+            return
+        try:
+            obj.addExtension("App::SuppressibleExtensionPython")
+            if App.GuiUp and obj.ViewObject is not None:
+                obj.ViewObject.addExtension("Gui::ViewProviderSuppressibleExtensionPython")
+        except Exception:
+            return
+    try:
+        if obj.Suppressed != inutile:
+            obj.Suppressed = inutile
+    except Exception:
+        pass
+
+
+def marquer_inutilisees(doc):
+    """Frozen copies / containers that no Link of `doc` uses any more (part
+    deleted, relinked, replaced...) are moved into the sub-group "Unused" of
+    Solides_figes and get the overlay icon, so they can be sorted out by
+    hand; copies used again go back. Returns the unused ones."""
+    copies = [o for o in doc.Objects if _est_fige(o)
+              and o.getParentGeoFeatureGroup() is None]     # not inside a container
+    if not copies:
+        return []
+    utilisees = set()
+    for l in doc.Objects:
+        if _est_lien(l) and l.LinkedObject is not None:
+            utilisees.add(l.LinkedObject.Name)
+    inutiles = [c for c in copies if c.Name not in utilisees]
+    principal = doc.getObject(GROUPE_COPIES)
+    sous = doc.getObject(GROUPE_INUTILES)
+    if inutiles and sous is None and principal is not None:
+        sous = doc.addObject('App::DocumentObjectGroup', GROUPE_INUTILES)
+        sous.Label = tr("Unused")
+        principal.addObject(sous)
+    for c in copies:
+        inutile = c in inutiles
+        if inutile and sous is not None and c not in sous.Group:
+            sous.addObject(c)               # also removes it from Solides_figes
+        elif not inutile and sous is not None and c in sous.Group and principal is not None:
+            principal.addObject(c)
+        _marque(c, inutile)
+    if sous is not None and not sous.Group:
+        doc.removeObject(sous.Name)
+    return inutiles
+
+
 def _chemins_inverses(cont, src):
     """Path mapping copy name -> source name, to relink a frozen container
     to its source App::Part (inverse of _creer_ou_rafraichir_conteneur)."""
@@ -510,6 +568,7 @@ def figer(doc=None, selection=None):
             App.Console.PrintMessage(
                 tr("Freeze: {name} frozen ({n} references refreshed)").format(
                     name=lien.Label, n=n) + "\n")
+        marquer_inutilisees(doc)
         doc.recompute()
     finally:
         doc.commitTransaction()
@@ -547,6 +606,7 @@ def relier(doc=None, selection=None):
             App.Console.PrintMessage(
                 tr("Freeze: {name} relinked to {doc}#{obj}").format(
                     name=lien.Label, doc=doc_src.Name, obj=src.Name) + "\n")
+        marquer_inutilisees(doc)
         doc.recompute()
     finally:
         doc.commitTransaction()
@@ -762,6 +822,11 @@ def diagnostic(doc=None):
                     "  " + tr("{status} {joint:<12} {ref}: {sub:<10} on {target}").format(
                         status=tr("OK") if ok else tr("KO"), joint=o.Label, ref=p,
                         sub=sub, target=desc) + "\n")
+    inutiles = marquer_inutilisees(doc)
+    if inutiles:
+        App.Console.PrintWarning(tr("Frozen copies used by no part (sub-group “Unused”, "
+                                    "can be deleted): {names}").format(
+            names=", ".join(c.Label for c in inutiles)) + "\n")
     pr(tr("===== {ok} reference(s) OK, {broken} broken =====").format(
         ok=n_ok, broken=n_ko) + "\n")
     return n_ko
@@ -781,6 +846,7 @@ def reparer(doc=None):
                     appliquer_reecriture(l)
             App.Console.PrintMessage(
                 tr("Freeze: copy cleaned: {name}").format(name=c.Label) + "\n")
+        marquer_inutilisees(doc)
         doc.recompute()
     finally:
         doc.commitTransaction()
