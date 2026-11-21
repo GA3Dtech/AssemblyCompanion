@@ -16,6 +16,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/fasteners.py` | Group Fasteners workbench parts into the Std_Part of their body |
 | `freecad/assembly_companion/new_part.py` | New part from selection (file PREFIX_001a_Desc, Body + SubShapeBinder) |
 | `freecad/assembly_companion/outdated.py` | Outdated frozen parts: compare FigeDate with the source file, refreeze |
+| `freecad/assembly_companion/bom.py` | Bill of materials (CSV), frozen parts under their original name |
 | `freecad/assembly_companion/duplicate.py` | Duplicate components (clone Links in the assembly tree) |
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
