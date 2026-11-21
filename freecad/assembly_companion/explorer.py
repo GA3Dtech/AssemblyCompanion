@@ -839,17 +839,25 @@ def show_explorer_tab():
 
 
 def show_insert_dock():
-    """Explorer in a dock next to the 3D view, click = insert into the
-    active assembly / Std_Part."""
+    """Explorer in a large floating window over the right half of FreeCAD,
+    click = insert into the active assembly / Std_Part. Docked, it ended up
+    tabbed under the Tasks panel, far too narrow for the thumbnails; the
+    user can still dock it by dragging its title bar."""
     import FreeCADGui as Gui
     mw = Gui.getMainWindow()
     for d in mw.findChildren(QtWidgets.QDockWidget, DOCK_NAME):
         d.show()
         d.raise_()
+        d.activateWindow()
         return d
     dock = QtWidgets.QDockWidget(tr("Insert component"), mw)
     dock.setObjectName(DOCK_NAME)
     dock.setWidget(ExplorerWidget(mode="insert", parent=dock))
     mw.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)
+    dock.setFloating(True)
+    g = mw.frameGeometry()
+    w, h = max(g.width() // 2, 640), max(g.height() - 120, 480)
+    dock.setGeometry(g.x() + g.width() - w - 20, g.y() + 80, w, h)
     dock.show()
+    dock.raise_()
     return dock
