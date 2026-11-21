@@ -35,6 +35,7 @@ L'atelier Assembly intégré à FreeCAD travaille avec des **App::Link** vers le
 - Chaque ouverture **recalcule toute la chaîne** : pièce source, noms topologiques, liaisons. Il suffit d'un changement de version de FreeCAD, d'un fichier déplacé ou renommé, ou d'une petite différence de recalcul pour que des liaisons sautent.
 - Les SubShapeBinder des pièces qui prennent appui sur l'assemblage créent des **références cycliques** : la pièce dépend de l'assemblage, qui dépend de la pièce par son Link.
 - « Import link » rapatrie tout l'historique paramétrique des pièces, ce qui donne des fichiers énormes.
+- Les pièces liées doivent **rester chargées** : tous les fichiers sources de l'assemblage sont ouverts en même temps, et l'arbre de construction à gauche les liste tous, avec tout leur historique. Dès qu'on dépasse quelques pièces, l'arbre devient interminable, réparti sur une multitude de fichiers ouverts, et c'est ingérable. Pire : fermer un de ces fichiers pour faire le ménage dans l'arbre fait disparaître ses pièces de l'assemblage (piège classique dans un assemblage hybride, mi-figé, mi-lié).
 
 A2+ stockait au contraire un **solide mort** dans l'assemblage. Le fichier se rouvre à l'identique, des années plus tard. Ces outils apportent ce comportement à l'atelier Assembly, en gardant ses liaisons et son solveur.
 

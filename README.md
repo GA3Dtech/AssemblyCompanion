@@ -6,7 +6,7 @@ Assembly Companion is **not another assembly workbench**. It works *with* FreeCA
 
 ## Why
 
-The built-in Assembly workbench links parts from their source files (App::Link). That is light and associative, but every opening recomputes the whole chain: a FreeCAD version change, a moved or renamed file, a small recompute difference, and joints break. A2plus used to store a *dead solid* inside the assembly, so files reopened identically years later. Assembly Companion brings that durability to the built-in workbench, and adds the tools a workshop needs to find, place and select parts in large assemblies.
+The built-in Assembly workbench links parts from their source files (App::Link). That is light and associative, but every opening recomputes the whole chain: a FreeCAD version change, a moved or renamed file, a small recompute difference, and joints break. Linked parts also have to stay loaded: every source file of the assembly is open at the same time, and the model tree on the left lists every one of them with its whole construction history. Past a handful of parts this becomes an endless tree spread over countless open files, impossible to keep track of — and closing one of these files to tidy up the tree makes its parts vanish from the assembly. A2plus used to store a *dead solid* inside the assembly, so files reopened identically years later and only the assembly itself had to be open. Assembly Companion brings that durability to the built-in workbench, and adds the tools a workshop needs to find, place and select parts in large assemblies.
 
 ## Tools
 
