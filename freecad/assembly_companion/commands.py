@@ -87,6 +87,10 @@ def _duplicate():
     _module("duplicate").duplicate(App.ActiveDocument)
 
 
+def _fasteners():
+    _module("fasteners").organize(App.ActiveDocument)
+
+
 def _new_part():
     _module("new_part").new_part_from_selection(App.ActiveDocument)
 
@@ -142,6 +146,12 @@ COMMANDS = {
         tr("Clone the selected components in the assembly: new instances of the "
             "same parts (frozen or not), same place, optionally with their joints. "
             "Source files are not touched.")),
+    "AssemblyCompanion_Fasteners": _Command(
+        _fasteners, "Fasteners.svg", tr("Group fasteners with their body"),
+        tr("Put the screws, nuts, inserts... of the Fasteners workbench into the "
+           "Std_Part of the body they are attached to (a Std_Part is created around "
+           "a body that has none). The Part becomes a complete component and the "
+           "fasteners stay in place when it moves. Selected ones, or all.")),
     "AssemblyCompanion_NewPart": _Command(
         _new_part, "NewPart.svg", tr("New part from selection"),
         tr("Create a new part file (PREFIX_001a_Description) whose Body holds a "
@@ -175,7 +185,7 @@ TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
-                   "AssemblyCompanion_NewPart",
+                   "AssemblyCompanion_NewPart", "AssemblyCompanion_Fasteners",
                    "AssemblyCompanion_Explorer",
                    "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets"]
 MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]

@@ -13,6 +13,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/commands.py` | Gui commands (thin wrappers that call the modules below) |
 | `freecad/assembly_companion/freeze.py` | Freeze / Relink / Delete joints / Diagnostic / Repair |
 | `freecad/assembly_companion/explorer.py` | Thumbnail explorer (central tab) and "Insert component (visual)" dock |
+| `freecad/assembly_companion/fasteners.py` | Group Fasteners workbench parts into the Std_Part of their body |
 | `freecad/assembly_companion/new_part.py` | New part from selection (file PREFIX_001a_Desc, Body + SubShapeBinder) |
 | `freecad/assembly_companion/duplicate.py` | Duplicate components (clone Links in the assembly tree) |
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
@@ -83,6 +84,9 @@ FreeCAD restart (or a module reload).
   new parts default to a detached binder (`BindMode = "Detached"`).
 - FreeCAD detaches cross-document Links BEFORE `slotDeletedDocument`: their target
   cannot be read there (close_guard keeps the last known target of each Link).
+- The FreeCAD MCP server (`mcp__freecad__execute_code`) can drive the user's open
+  FreeCAD: test GUI behaviour there on COPIES of files (temporary folder), never
+  on the user's open documents, and close the copies afterwards.
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 
