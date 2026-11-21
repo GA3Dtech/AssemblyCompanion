@@ -42,6 +42,7 @@ DEFAULTS = {
     "FreezeOnInsert": False,
     "ShowInAssemblyWorkbench": True,
     "LeaveAssemblyForSelectionSets": True,
+    "SelectionSetsElements": False,  # selection sets store faces / edges / vertices
     "WarnOnSourceClose": True,
     "DuplicateJoints": "ask",       # duplicate: also copy joints (ask / always / never)      # close_guard: warn when a linked source is closed
     "NewPartDir": "",               # working folder ("" = folder of the assembly)
@@ -188,6 +189,9 @@ class PreferencePage(object):
             tr("In assembly edit mode a click selects whole parts and drags them; "
                "outside of it faces, edges and vertices can be selected."))
         f.addRow(self.leave_asm)
+        self.sets_elements = QtWidgets.QCheckBox(
+            tr("Selection sets keep faces, edges and vertices"))
+        f.addRow(self.sets_elements)
         self.warn_close = QtWidgets.QCheckBox(
             tr("Warn when a file used by linked parts of an open assembly is closed"))
         self.warn_close.setToolTip(
@@ -217,6 +221,7 @@ class PreferencePage(object):
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
+        self.sets_elements.setChecked(get("SelectionSetsElements"))
         self.warn_close.setChecked(get("WarnOnSourceClose"))
         i = self.dup_joints.findData(get("DuplicateJoints"))
         self.dup_joints.setCurrentIndex(i if i >= 0 else 0)
@@ -234,6 +239,7 @@ class PreferencePage(object):
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
+        put("SelectionSetsElements", self.sets_elements.isChecked())
         put("WarnOnSourceClose", self.warn_close.isChecked())
         put("DuplicateJoints", self.dup_joints.currentData())
 

@@ -122,13 +122,45 @@ def strip_element(obj, sub):
     return sub[:i + 1] if i >= 0 else ""
 
 
+_ELEMENT = re.compile(r"^(Face|Edge|Vertex)\d+$")
+
+
+def element_of(k):
+    """Element name of a member ("Face6"), "" for a whole object."""
+    sub = split_key(k)[1]
+    if not sub or sub.endswith("."):
+        return ""
+    last = sub.rsplit(".", 1)[-1]
+    return last if _ELEMENT.match(last) else ""
+
+
+def object_key(k):
+    """Member without its element: the object carrying the face / edge."""
+    e = element_of(k)
+    if not e:
+        return k
+    r, s = split_key(k)
+    return make_key(r, s[:-len(e)])
+
+
+def element_sub(obj, sub):
+    """Subname of a selected element without mapped topological names
+    (";#..."), which do not resolve once the topology is rebuilt."""
+    from .freeze import decouper_sub
+    if ";" not in sub:
+        return sub
+    objets, _mapped, elem = decouper_sub(sub)
+    return ".".join(objets) + "." + elem if elem else strip_element(obj, sub)
+
+
 def path_names(sub):
     return [n for n in (sub or "").split(".") if n]
 
 
 def path_objects(doc, k):
-    """Objects along the path [root, ..., leaf], or None."""
-    rname, sub = split_key(k)
+    """Objects along the path [root, ..., leaf], or None (for an element
+    member: the object carrying it)."""
+    rname, sub = split_key(object_key(k))
     root = doc.getObject(rname)
     if root is None:
         return None
@@ -236,9 +268,13 @@ def all_leaves(doc):
 
 
 def expand(doc, keys):
+    """Members as individual parts; element members are kept as they are."""
     out = []
     for k in keys:
-        walk_leaves(doc, k, out)
+        if element_of(k):
+            out.append(k)
+        else:
+            walk_leaves(doc, k, out)
     return dedupe(out)
 
 
@@ -360,7 +396,9 @@ def create_set(doc, label, keys):
     return s
 
 
-def selection_keys(doc):
+def selection_keys(doc, elements=False):
+    """Members of the current selection: whole objects, or with `elements`
+    the selected faces / edges / vertices themselves."""
     out = []
     for so in Gui.Selection.getSelectionEx("", 0):
         try:
@@ -373,7 +411,10 @@ def selection_keys(doc):
             continue
         subs = so.SubElementNames or ("",)
         for sub in subs:
-            out.append(make_key(root.Name, strip_element(root, sub)))
+            if elements and sub and not sub.endswith("."):
+                out.append(make_key(root.Name, element_sub(root, sub)))
+            else:
+                out.append(make_key(root.Name, strip_element(root, sub)))
     return dedupe(out)
 
 
@@ -529,6 +570,15 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         self.list.itemDoubleClicked.connect(lambda *_: self.select_set())
         lay.addWidget(self.list, 1)
 
+        self.elements = QtWidgets.QCheckBox(tr("Keep faces, edges and vertices"))
+        self.elements.setToolTip(tr(
+            "Checked: New / Add / Remove / Replace store the selected faces, edges and "
+            "vertices themselves, and selecting the set selects them again (useful for "
+            "TechDraw). Unchecked: a face designates its whole part."))
+        self.elements.setChecked(prefs.get("SelectionSetsElements"))
+        self.elements.toggled.connect(lambda on: prefs.put("SelectionSetsElements", on))
+        lay.addWidget(self.elements)
+
         g1 = QtWidgets.QGroupBox(tr("Compose"))
         l1 = QtWidgets.QGridLayout(g1)
         l1.addWidget(self._btn(tr("New"), tr("Create a set from the current selection"), self.new_set), 0, 0)
@@ -561,6 +611,11 @@ class SelectionSetsPanel(QtWidgets.QWidget):
                                tr("New part file whose Body holds a SubShapeBinder of the "
                                   "current selection (faces, edges, parts), or of the set "
                                   "when nothing is selected"), self.new_part), 0, 0)
+        l4.addWidget(self._btn(tr("Shape for TechDraw"),
+                               tr("SubShapeBinder of the set members only (chosen faces, "
+                                  "edges, parts) at the root of the document: make the "
+                                  "TechDraw view of it to draw only what matters"),
+                               self.techdraw_shape), 0, 1)
         lay.addWidget(g4)
 
         g3 = QtWidgets.QGroupBox(tr("Combine"))
@@ -597,7 +652,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         return doc.getObject(item.data(USER_ROLE))
 
     def need_selection(self, doc):
-        keys = selection_keys(doc)
+        keys = selection_keys(doc, self.elements.isChecked())
         if not keys:
             self.msg(tr("Nothing is selected in the 3D view or the tree."))
         return keys
@@ -648,7 +703,9 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             return
         for s in list_sets(doc):
             n = len(get_members(s))
-            it = QtWidgets.QListWidgetItem("%s   (%d)" % (s.Label, n))
+            # ◆: the set holds faces / edges / vertices
+            mark = "  ◆" if any(element_of(k) for k in get_members(s)) else ""
+            it = QtWidgets.QListWidgetItem("%s   (%d)%s" % (s.Label, n, mark))
             it.setData(USER_ROLE, s.Name)
             self.list.addItem(it)
             if s.Name == cur:
@@ -970,6 +1027,45 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         self.msg(tr("All parts are visible ({n}).").format(n=len(leaves)))
 
     # ---------- create ----------
+    def techdraw_shape(self):
+        """SubShapeBinder of the members of the current set, at the root of the
+        document (outside any assembly: no dependency cycle). It follows the
+        parts and can be used as the source of a TechDraw view."""
+        doc, s = self.doc(), self.current_set()
+        if s is None:
+            return
+        supports = []
+        for k in get_members(s):
+            if path_objects(doc, k) is None:
+                continue
+            r, sub = split_key(k)
+            root = doc.getObject(r)
+            for o, subs in supports:
+                if o is root:
+                    subs.append(sub)
+                    break
+            else:
+                supports.append((root, [sub]))
+        if not supports:
+            self.msg(tr("The set is empty or its members no longer exist."))
+            return
+
+        def _do():
+            b = doc.addObject("PartDesign::SubShapeBinder", "SetShape")
+            b.Label = tr("{name} (shape)").format(name=s.Label)
+            b.MakeFace = False          # keep chosen edges as edges
+            b.Support = [(o, tuple(subs)) for o, subs in supports]
+            doc.recompute()
+            return b
+        b = self._transaction(doc, tr("Shape of the set"), _do)
+        self.msg(tr("“{name}” created: select it, then insert a TechDraw view.").format(
+            name=b.Label))
+        try:
+            Gui.Selection.clearSelection()
+            Gui.Selection.addSelection(b)
+        except Exception:
+            pass
+
     def new_part(self):
         doc = self.doc()
         if doc is None:
