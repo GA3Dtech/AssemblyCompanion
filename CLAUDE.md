@@ -13,6 +13,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/commands.py` | Gui commands (thin wrappers that call the modules below) |
 | `freecad/assembly_companion/freeze.py` | Freeze / Relink / Delete joints / Diagnostic / Repair |
 | `freecad/assembly_companion/explorer.py` | Thumbnail explorer (central tab) and "Insert component (visual)" dock |
+| `freecad/assembly_companion/new_part.py` | New part from selection (file PREFIX_001a_Desc, Body + SubShapeBinder) |
 | `freecad/assembly_companion/duplicate.py` | Duplicate components (clone Links in the assembly tree) |
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
@@ -71,6 +72,9 @@ FreeCAD restart (or a module reload).
   changing texts run `python3 tools/i18n.py update`, then fill the new entries
   of `translations/*.json` (fr, de, it, es); `python3 tools/i18n.py check`
   must report nothing missing before a commit.
+- A SubShapeBinder that stays linked to the assembly makes the two files depend
+  on each other once the new part is inserted ("The graph must be a DAG"):
+  new parts default to a detached binder (`BindMode = "Detached"`).
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

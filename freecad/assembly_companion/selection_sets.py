@@ -555,6 +555,14 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         l2.addWidget(self._btn(tr("Restore look"), tr("Undo transparency / unselectable state"), self.restore_view), 2, 2)
         lay.addWidget(g2)
 
+        g4 = QtWidgets.QGroupBox(tr("Create"))
+        l4 = QtWidgets.QGridLayout(g4)
+        l4.addWidget(self._btn(tr("New part…"),
+                               tr("New part file whose Body holds a SubShapeBinder of the "
+                                  "current selection (faces, edges, parts), or of the set "
+                                  "when nothing is selected"), self.new_part), 0, 0)
+        lay.addWidget(g4)
+
         g3 = QtWidgets.QGroupBox(tr("Combine"))
         l3 = QtWidgets.QGridLayout(g3)
         self.comboA = QtWidgets.QComboBox()
@@ -960,6 +968,28 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             for k in leaves:
                 show_path(doc, k)
         self.msg(tr("All parts are visible ({n}).").format(n=len(leaves)))
+
+    # ---------- create ----------
+    def new_part(self):
+        doc = self.doc()
+        if doc is None:
+            return
+        from . import new_part
+        keys = new_part.selection_keys(doc)
+        if not keys:
+            s = self.current_set(quiet=True)
+            if s is None:
+                self.msg(tr("Select elements in the 3D view, or pick a set in the list."))
+                return
+            keys = [(doc.getObject(r), sub) for r, sub in map(split_key, get_members(s))
+                    if doc.getObject(r) is not None]
+        try:
+            new_doc = new_part.new_part_from_selection(doc, keys)
+        except Exception as e:
+            self.msg(str(e))
+            return
+        if new_doc is not None:
+            self.msg(tr("New part created: {file}").format(file=new_doc.Label))
 
     # ---------- combine ----------
     def boolean(self, op):

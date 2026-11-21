@@ -48,6 +48,9 @@ DEFAULTS = {
     "NewPartRevision": "a",
     "NewPartInsert": True,          # insert the new part into the assembly
     "NewPartSwitchWorkbench": True,  # switch to PartDesign after creation
+    "NewPartBinderMode": "copy",    # "copy" (detached binder) or "linked"
+    "NewPartLastDir": "",           # last folder / prefix used (not on the page)
+    "NewPartLastPrefix": "",
 }
 
 
@@ -162,6 +165,10 @@ class PreferencePage(object):
         f.addRow(tr("Digits of the number:"), self.digits)
         self.revision = QtWidgets.QLineEdit()
         f.addRow(tr("First revision:"), self.revision)
+        self.binder_mode = QtWidgets.QComboBox()
+        self.binder_mode.addItem(tr("Independent copy (recommended)"), "copy")
+        self.binder_mode.addItem(tr("Linked to the assembly (follows its changes)"), "linked")
+        f.addRow(tr("Binder:"), self.binder_mode)
         self.insert_new = QtWidgets.QCheckBox(tr("Insert the new part into the active assembly"))
         f.addRow(self.insert_new)
         self.switch_wb = QtWidgets.QCheckBox(tr("Switch to the Part Design workbench"))
@@ -191,6 +198,8 @@ class PreferencePage(object):
         self.prefix.setText(get("NewPartPrefix"))
         self.digits.setValue(get("NewPartDigits"))
         self.revision.setText(get("NewPartRevision"))
+        i = self.binder_mode.findData(get("NewPartBinderMode"))
+        self.binder_mode.setCurrentIndex(i if i >= 0 else 0)
         self.insert_new.setChecked(get("NewPartInsert"))
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
@@ -204,6 +213,7 @@ class PreferencePage(object):
         put("NewPartPrefix", self.prefix.text().strip())
         put("NewPartDigits", self.digits.value())
         put("NewPartRevision", self.revision.text().strip())
+        put("NewPartBinderMode", self.binder_mode.currentData())
         put("NewPartInsert", self.insert_new.isChecked())
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())

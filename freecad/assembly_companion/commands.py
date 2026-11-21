@@ -87,6 +87,10 @@ def _duplicate():
     _module("duplicate").duplicate(App.ActiveDocument)
 
 
+def _new_part():
+    _module("new_part").new_part_from_selection(App.ActiveDocument)
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -138,6 +142,11 @@ COMMANDS = {
         tr("Clone the selected components in the assembly: new instances of the "
             "same parts (frozen or not), same place, without joints. Source files "
             "are not touched.")),
+    "AssemblyCompanion_NewPart": _Command(
+        _new_part, "NewPart.svg", tr("New part from selection"),
+        tr("Create a new part file (PREFIX_001a_Description) whose Body holds a "
+           "SubShapeBinder of the selected faces, edges or parts, to model it in "
+           "the context of the assembly.")),
     "AssemblyCompanion_Reactivate": _Command(
         _reactivate, "Reactivate.svg", tr("Reactivate assembly"),
         tr("Unlock an assembly that can no longer be activated (Assembly commands "
@@ -166,6 +175,7 @@ TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
+                   "AssemblyCompanion_NewPart",
                    "AssemblyCompanion_Explorer",
                    "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets"]
 MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]
