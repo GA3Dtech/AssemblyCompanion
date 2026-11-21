@@ -36,6 +36,7 @@ try:
 except ImportError:
     Part = None
 
+from . import prefs
 from .i18n import tr
 
 DOCK_NAME = "JeuxDeSelectionDock"
@@ -246,11 +247,38 @@ def leaf_of(doc, k):
     return objs[-1] if objs else None
 
 
+def oid(o):
+    """Identity of an object across documents (names repeat between files)."""
+    return (o.Document.Name, o.Name)
+
+
+def visibility_chain(doc, k):
+    """Objects whose Visibility drives the display of member k, from the root
+    down to its "visibility target". The chain stops at the first Link or
+    Body and never leaves `doc`: changing the Visibility of what lies inside
+    a Link (objects of a source file opened in the background, features of a
+    Body, children shared by several Links) can crash FreeCAD, and would
+    hide the part in every other instance anyway."""
+    chain = []
+    for o in path_ancestors(doc, k) or []:
+        if o.Document is not doc:
+            break
+        chain.append(o)
+        if o.TypeId.startswith("App::Link") or o.isDerivedFrom("PartDesign::Body"):
+            break
+    return chain
+
+
+def visibility_target(doc, k):
+    chain = visibility_chain(doc, k)
+    return chain[-1] if chain else None
+
+
 def show_path(doc, k):
-    anc = path_ancestors(doc, k)
-    if not anc:
+    chain = visibility_chain(doc, k)
+    if not chain:
         return False
-    for o in anc:
+    for o in chain:
         try:
             if not o.Visibility:
                 o.Visibility = True
@@ -260,13 +288,28 @@ def show_path(doc, k):
 
 
 def path_is_visible(doc, k):
-    anc = path_ancestors(doc, k)
-    if not anc:
+    chain = visibility_chain(doc, k)
+    if not chain:
         return False
     try:
-        return all(o.Visibility for o in anc)
+        return all(o.Visibility for o in chain)
     except Exception:
         return True
+
+
+def leave_assembly_edit(doc):
+    """Leave the edit mode of an assembly: in that mode a click in the 3D view
+    picks and drags whole parts, so faces, edges and vertices cannot be
+    selected. Returns True when an assembly was left."""
+    try:
+        gdoc = Gui.getDocument(doc.Name)
+        vp = gdoc.getInEdit()
+        if vp is not None and vp.Object.isDerivedFrom("Assembly::AssemblyObject"):
+            gdoc.resetEdit()
+            return True
+    except Exception:
+        pass
+    return False
 
 
 # --------------------------------------------------------------------------
@@ -801,10 +844,11 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         if s is None:
             return
         leaves = self._set_leaves(doc, s)
-        for k in leaves:
-            o = leaf_of(doc, k)
-            if o is not None:
+        for o in self._targets(doc, leaves).values():
+            try:
                 o.Visibility = False
+            except Exception:
+                pass
         self.msg(tr("“{name}” hidden ({n} part(s)).").format(name=s.Label, n=len(leaves)))
 
     def isolate_set(self):
@@ -813,22 +857,34 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             return
         with _Busy():
             wanted = expand(doc, get_members(s))
-            wanted_set = set(wanted)
-            wanted_objs = set()
-            for k in wanted:
-                o = leaf_of(doc, k)
-                if o is not None:
-                    wanted_objs.add(o.Name)
-            for k in all_leaves(doc):
-                if k in wanted_set:
-                    continue
-                o = leaf_of(doc, k)
-                if o is not None and o.Name not in wanted_objs:
-                    o.Visibility = False
+            keep = self._wanted_ids(doc, wanted)
+            for i, o in self._targets(doc, all_leaves(doc)).items():
+                if i not in keep:
+                    try:
+                        o.Visibility = False
+                    except Exception:
+                        pass
             for k in wanted:
                 show_path(doc, k)
         self.msg(tr("“{name}” isolated ({n} part(s)). “Show all” to go back.").format(
             name=s.Label, n=len(wanted)))
+
+    def _targets(self, doc, keys):
+        """{id: visibility target} of members, each object once."""
+        out = {}
+        for k in keys:
+            o = visibility_target(doc, k)
+            if o is not None:
+                out.setdefault(oid(o), o)
+        return out
+
+    def _wanted_ids(self, doc, wanted):
+        """Ids of every object on the visibility chains of the wanted members
+        (their containers must not be hidden either)."""
+        ids = set()
+        for k in wanted:
+            ids.update(oid(o) for o in visibility_chain(doc, k))
+        return ids
 
     def _remember_view(self, doc, o):
         vo = getattr(o, "ViewObject", None)
@@ -846,21 +902,17 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             return
         with _Busy():
             wanted = expand(doc, get_members(s))
-            wanted_objs = set()
-            for k in wanted:
-                o = leaf_of(doc, k)
-                if o is not None:
-                    wanted_objs.add(o.Name)
-            for k in all_leaves(doc):
-                o = leaf_of(doc, k)
-                if o is None:
-                    continue
+            wanted_objs = set(self._targets(doc, wanted))
+            keep = self._wanted_ids(doc, wanted)
+            for i, o in self._targets(doc, all_leaves(doc)).items():
+                if i in keep and i not in wanted_objs:
+                    continue            # container of a wanted part
                 vo = self._remember_view(doc, o)
                 if vo is None:
                     continue
                 saved = self._saved_view.get((doc.Name, o.Name), (None, None))
                 try:
-                    if o.Name in wanted_objs:
+                    if i in wanted_objs:
                         if saved[0] is not None and hasattr(vo, "Transparency"):
                             vo.Transparency = saved[0]
                         if hasattr(vo, "Selectable"):
@@ -946,6 +998,11 @@ def show_panel():
         d.close()
         d.setParent(None)
         d.deleteLater()
+    doc = App.ActiveDocument
+    if doc is not None and prefs.get("LeaveAssemblyForSelectionSets") \
+            and leave_assembly_edit(doc):
+        App.Console.PrintMessage(tr("Selection sets: assembly edit mode left, faces, "
+                                    "edges and vertices can be selected.") + "\n")
     dock = QtWidgets.QDockWidget(tr("Selection sets"), mw)
     dock.setObjectName(DOCK_NAME)
     panel = SelectionSetsPanel(dock)
