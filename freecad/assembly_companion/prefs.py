@@ -42,7 +42,8 @@ DEFAULTS = {
     "FreezeOnInsert": False,
     "ShowInAssemblyWorkbench": True,
     "LeaveAssemblyForSelectionSets": True,
-    "WarnOnSourceClose": True,      # close_guard: warn when a linked source is closed
+    "WarnOnSourceClose": True,
+    "DuplicateJoints": "ask",       # duplicate: also copy joints (ask / always / never)      # close_guard: warn when a linked source is closed
     "NewPartDir": "",               # working folder ("" = folder of the assembly)
     "NewPartPrefix": "",
     "NewPartDigits": 3,
@@ -193,6 +194,11 @@ class PreferencePage(object):
             tr("Closing such a file makes its parts vanish from the assembly; "
                "the warning offers to freeze them."))
         f.addRow(self.warn_close)
+        self.dup_joints = QtWidgets.QComboBox()
+        self.dup_joints.addItem(tr("Ask"), "ask")
+        self.dup_joints.addItem(tr("Always"), "always")
+        self.dup_joints.addItem(tr("Never"), "never")
+        f.addRow(tr("Duplicate the joints with the components:"), self.dup_joints)
         lay.addWidget(g)
         lay.addStretch(1)
 
@@ -212,6 +218,8 @@ class PreferencePage(object):
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
         self.warn_close.setChecked(get("WarnOnSourceClose"))
+        i = self.dup_joints.findData(get("DuplicateJoints"))
+        self.dup_joints.setCurrentIndex(i if i >= 0 else 0)
 
     def saveSettings(self):
         put("Language", self.language.currentData())
@@ -227,6 +235,7 @@ class PreferencePage(object):
         put("FreezeOnInsert", self.freeze_insert.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
         put("WarnOnSourceClose", self.warn_close.isChecked())
+        put("DuplicateJoints", self.dup_joints.currentData())
 
 
 def register():
