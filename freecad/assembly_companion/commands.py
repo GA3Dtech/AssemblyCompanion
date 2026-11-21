@@ -103,6 +103,10 @@ def _bom():
     _module("bom").export()
 
 
+def _replace():
+    _module("replace").replace()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -169,6 +173,11 @@ COMMANDS = {
            "Std_Part of the body they are attached to (a Std_Part is created around "
            "a body that has none). The Part becomes a complete component and the "
            "fasteners stay in place when it moves. Selected ones, or all.")),
+    "AssemblyCompanion_Replace": _Command(
+        _replace, "Replace.svg", tr("Replace component"),
+        tr("Point the selected component to an object of another file (e.g. the next "
+           "revision, proposed automatically), keeping its place and its joints. "
+           "Frozen components are frozen again; other instances can follow.")),
     "AssemblyCompanion_NewPart": _Command(
         _new_part, "NewPart.svg", tr("New part from selection"),
         tr("Create a new part file (PREFIX_001a_Description) whose Body holds a "
@@ -203,6 +212,7 @@ TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_Outdated", "AssemblyCompanion_Bom",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
+                   "AssemblyCompanion_Replace",
                    "AssemblyCompanion_NewPart", "AssemblyCompanion_Fasteners",
                    "AssemblyCompanion_Explorer",
                    "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets"]

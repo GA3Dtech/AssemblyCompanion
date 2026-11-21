@@ -352,6 +352,33 @@ def _target_container(doc):
     return asm[0] if len(asm) == 1 else None
 
 
+def choose_object(src_doc, parent_widget, title, name, preferred=None):
+    """Object of `src_doc` to use as a component: the only candidate, or the
+    one picked in a list showing the tree. `preferred` (internal name) is
+    selected by default. None when cancelled; RuntimeError when the file
+    holds no candidate."""
+    cands = _candidates(src_doc)
+    if not cands:
+        raise RuntimeError(tr("“{name}” contains no Part, Body or solid.").format(name=name))
+    if len(cands) == 1:
+        return cands[0][0]
+    # Indent nested objects to show the tree; add the internal name when
+    # two objects share a label, so every entry is unique
+    dup = set(o.Label for o, _ in cands
+              if sum(1 for c, _ in cands if c.Label == o.Label) > 1)
+    labels = ["%s%s%s  (%s)" % ("      " * d, o.Label,
+                                " [%s]" % o.Name if o.Label in dup else "",
+                                o.TypeId.split("::")[-1])
+              for o, d in cands]
+    current = next((i for i, (o, _d) in enumerate(cands) if o.Name == preferred), 0)
+    choix, ok = QtWidgets.QInputDialog.getItem(
+        parent_widget, title,
+        tr("“{name}” contains several objects:").format(name=name), labels, current, False)
+    if not ok:
+        return None
+    return cands[labels.index(choix)][0]
+
+
 def insert_component(path, parent_widget=None, freeze=False):
     """Insert the main object of `path` as an App::Link into the active
     assembly / Std_Part of the active document. Returns the new Link."""
@@ -363,25 +390,9 @@ def insert_component(path, parent_widget=None, freeze=False):
     if _same_file(doc.FileName, path):
         raise RuntimeError(tr("A file cannot be inserted into itself."))
     src_doc = _source_document(path, doc)
-    cands = _candidates(src_doc)
-    if not cands:
-        raise RuntimeError(tr("“{name}” contains no Part, Body or solid.").format(name=name))
-    obj = cands[0][0]
-    if len(cands) > 1:
-        # Indent nested objects to show the tree; add the internal name when
-        # two objects share a label, so every entry is unique
-        dup = set(o.Label for o, _ in cands
-                  if sum(1 for c, _ in cands if c.Label == o.Label) > 1)
-        labels = ["%s%s%s  (%s)" % ("      " * d, o.Label,
-                                    " [%s]" % o.Name if o.Label in dup else "",
-                                    o.TypeId.split("::")[-1])
-                  for o, d in cands]
-        choix, ok = QtWidgets.QInputDialog.getItem(
-            parent_widget, tr("Insert component"),
-            tr("“{name}” contains several objects:").format(name=name), labels, 0, False)
-        if not ok:
-            return None
-        obj = cands[labels.index(choix)][0]
+    obj = choose_object(src_doc, parent_widget, tr("Insert component"), name)
+    if obj is None:
+        return None
     container = _target_container(doc)
     doc.openTransaction(tr("Insert component"))
     try:
