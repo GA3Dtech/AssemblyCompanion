@@ -107,6 +107,10 @@ def _replace():
     _module("replace").replace()
 
 
+def _archive():
+    _module("archive").archive()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -158,6 +162,11 @@ COMMANDS = {
         tr("Export the parts of the assembly with their quantities to a CSV file, "
            "frozen parts under their original name and source file, linked parts, "
            "fasteners and sub-assemblies included.")),
+    "AssemblyCompanion_Archive": _Command(
+        _archive, "Archive.svg", tr("Archive the assembly"),
+        tr("Put the assembly and every file it needs (linked parts, sub-assemblies, "
+           "optionally the sources of frozen parts) into one zip, relative paths "
+           "kept so it opens anywhere once extracted.")),
     "AssemblyCompanion_Repair": _Command(
         _repair, "Repair.svg", tr("Repair frozen copies"),
         tr("Clean frozen copies made by early versions and rewrite their "
@@ -210,6 +219,7 @@ COMMANDS = {
 TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
                    "AssemblyCompanion_Outdated", "AssemblyCompanion_Bom",
+                   "AssemblyCompanion_Archive",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
                    "AssemblyCompanion_Replace",
