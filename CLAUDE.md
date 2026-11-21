@@ -18,6 +18,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
 | `freecad/assembly_companion/selection_sets.py` | Named selection sets stored in the document |
+| `freecad/assembly_companion/close_guard.py` | Document observer: warn / freeze when a linked source file is closed |
 | `freecad/assembly_companion/docs.py` | Open source files without changing the active document |
 | `freecad/assembly_companion/i18n.py` | `tr()` and language selection |
 | `freecad/assembly_companion/prefs.py` | All settings (`get`/`put`) and the preference page |
@@ -80,6 +81,8 @@ FreeCAD restart (or a module reload).
 - A SubShapeBinder that stays linked to the assembly makes the two files depend
   on each other once the new part is inserted ("The graph must be a DAG"):
   new parts default to a detached binder (`BindMode = "Detached"`).
+- FreeCAD detaches cross-document Links BEFORE `slotDeletedDocument`: their target
+  cannot be read there (close_guard keeps the last known target of each Link).
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

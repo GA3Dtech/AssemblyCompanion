@@ -18,6 +18,7 @@ The built-in Assembly workbench links parts from their source files (App::Link).
 | **Delete part joints** | Deletes every joint (and grounding) of the selected parts, in one undo step. |
 | **Check frozen assembly** | Reports, for every joint reference, whether it resolves, and on which object and file. |
 | **Repair frozen copies** | Cleans copies made by early versions. |
+| **Closing a source file** | When a file still used by linked (not frozen) parts of an open assembly is closed — which makes those parts vanish — a warning lists them and offers to freeze them (the file is reopened in the background, the parts are frozen, the file is closed again) or to reopen the file. Can be turned off in the preferences. |
 | **Reactivate assembly** | Unlocks an assembly that can no longer be activated (Assembly commands greyed out, double-click does nothing): closes a stuck task panel, leaves a pending edit, clears stale active objects, then activates the selected assembly. Reports what it found in the report view. |
 
 Workflow for a modified part: *select it → Relink → edit the source → fix joints → Freeze.*

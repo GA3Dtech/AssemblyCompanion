@@ -42,6 +42,7 @@ DEFAULTS = {
     "FreezeOnInsert": False,
     "ShowInAssemblyWorkbench": True,
     "LeaveAssemblyForSelectionSets": True,
+    "WarnOnSourceClose": True,      # close_guard: warn when a linked source is closed
     "NewPartDir": "",               # working folder ("" = folder of the assembly)
     "NewPartPrefix": "",
     "NewPartDigits": 3,
@@ -186,6 +187,12 @@ class PreferencePage(object):
             tr("In assembly edit mode a click selects whole parts and drags them; "
                "outside of it faces, edges and vertices can be selected."))
         f.addRow(self.leave_asm)
+        self.warn_close = QtWidgets.QCheckBox(
+            tr("Warn when a file used by linked parts of an open assembly is closed"))
+        self.warn_close.setToolTip(
+            tr("Closing such a file makes its parts vanish from the assembly; "
+               "the warning offers to freeze them."))
+        f.addRow(self.warn_close)
         lay.addWidget(g)
         lay.addStretch(1)
 
@@ -204,6 +211,7 @@ class PreferencePage(object):
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
+        self.warn_close.setChecked(get("WarnOnSourceClose"))
 
     def saveSettings(self):
         put("Language", self.language.currentData())
@@ -218,6 +226,7 @@ class PreferencePage(object):
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
+        put("WarnOnSourceClose", self.warn_close.isChecked())
 
 
 def register():

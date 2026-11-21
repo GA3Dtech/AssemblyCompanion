@@ -98,4 +98,10 @@ try:
 except Exception as exc:
     App.Console.PrintWarning("Assembly Companion: Assembly toolbar not added (%s)\n" % exc)
 
+try:
+    from . import close_guard
+    close_guard.install()
+except Exception as exc:
+    App.Console.PrintWarning("Assembly Companion: close guard not installed (%s)\n" % exc)
+
 App.Console.PrintLog("Assembly Companion %s loaded\n" % __version__)
