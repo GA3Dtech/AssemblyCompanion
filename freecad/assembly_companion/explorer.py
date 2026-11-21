@@ -356,7 +356,7 @@ def insert_component(path, parent_widget=None, freeze=False):
     """Insert the main object of `path` as an App::Link into the active
     assembly / Std_Part of the active document. Returns the new Link."""
     import FreeCADGui as Gui
-    doc = App.ActiveDocument
+    doc = docs.working_document()
     name = os.path.basename(path)
     if doc is None:
         raise RuntimeError(tr("No active document: open or create the assembly first."))
@@ -526,7 +526,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         row.addWidget(self.mode_combo)
         main.addLayout(row)
 
-        self.freeze_check = QtWidgets.QCheckBox(tr("Freeze on insertion (Body only)"))
+        self.freeze_check = QtWidgets.QCheckBox(tr("Freeze on insertion"))
         self.freeze_check.setToolTip(tr("Insert the part, then freeze it at once "
                                         "(Assembly Companion)"))
         self.freeze_check.setChecked(get_freeze_on_insert())

@@ -74,3 +74,50 @@ def open_source(path, keep=None):
     if keep is not None and keep is not doc:
         activate(keep)
     return doc
+
+
+def has_assembly(doc):
+    return doc is not None and any(
+        o.isDerivedFrom("Assembly::AssemblyObject") for o in doc.Objects)
+
+
+def assembly_document():
+    """The only open document holding an assembly and shown in a 3D view,
+    or None."""
+    if not App.GuiUp:
+        return None
+    import FreeCADGui as Gui
+    found = []
+    for d in App.listDocuments().values():
+        if not has_assembly(d):
+            continue
+        try:
+            if Gui.getDocument(d.Name).mdiViewsOfType("Gui::View3DInventor"):
+                found.append(d)
+        except Exception:
+            pass
+    return found[0] if len(found) == 1 else None
+
+
+def _shown(doc):
+    """True when `doc` has a 3D view (not a source file loaded hidden)."""
+    try:
+        import FreeCADGui as Gui
+        return bool(Gui.getDocument(doc.Name).mdiViewsOfType("Gui::View3DInventor"))
+    except Exception:
+        return False
+
+
+def working_document():
+    """Document to work in: the active one, unless there is none or it is a
+    file loaded in the background (no 3D view) while exactly one shown
+    document holds an assembly. FreeCAD can be left in that state after a
+    document is closed. That assembly document is made active again."""
+    doc = App.ActiveDocument
+    if doc is not None and (has_assembly(doc) or _shown(doc)):
+        return doc
+    other = assembly_document()
+    if other is not None:
+        activate(other)
+        return other
+    return doc

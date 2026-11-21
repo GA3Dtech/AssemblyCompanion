@@ -64,7 +64,7 @@
   "Filter by file or folder name…": "Filtrer par nom de fichier ou de dossier…",
   "Click = open": "Clic = ouvrir",
   "Click = insert into the assembly": "Clic = insérer dans l'assemblage",
-  "Freeze on insertion (Body only)": "Figer à l'insertion (Corps uniquement)",
+  "Freeze on insertion": "Figer à l'insertion",
   "Insert the part, then freeze it at once (Assembly Companion)": "Insérer la pièce, puis la figer immédiatement (Assembly Companion)",
   "Choose the master folder to explore": "Choisir le dossier maître à explorer",
   "Open this folder in the file manager": "Ouvrir ce dossier dans le gestionnaire de fichiers",

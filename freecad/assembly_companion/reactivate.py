@@ -102,19 +102,8 @@ def _target_assembly(doc, view):
 
 
 def _assembly_document():
-    """The only open document holding an assembly and shown in a 3D view,
-    or None."""
-    import FreeCADGui as Gui
-    found = []
-    for d in App.listDocuments().values():
-        if not any(_is_assembly(o) for o in d.Objects):
-            continue
-        try:
-            if Gui.getDocument(d.Name).mdiViewsOfType("Gui::View3DInventor"):
-                found.append(d)
-        except Exception:
-            pass
-    return found[0] if len(found) == 1 else None
+    from . import docs
+    return docs.assembly_document()
 
 
 # ----------------------------------------------------------------------
