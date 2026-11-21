@@ -292,7 +292,9 @@ def _ouvrir_source(copie, doc_asm):
         for d in App.listDocuments().values():
             if d.FileName and os.path.samefile(d.FileName, chemin):
                 return d, False
-        return App.openDocument(chemin), True
+        # Hidden, and the assembly stays the active document (see docs.py)
+        from . import docs
+        return docs.open_source(chemin, keep=doc_asm), True
     return None, False
 
 

@@ -52,6 +52,7 @@ try:
 except ImportError:                       # outside FreeCAD (tests)
     from PySide6 import QtWidgets, QtCore, QtGui
 
+from . import docs
 from . import prefs
 from .i18n import tr
 
@@ -246,21 +247,13 @@ def load_thumbnail(cdir, path, mtime, size):
 #  Insertion into the active assembly / Std_Part
 # ----------------------------------------------------------------------
 def _same_file(a, b):
-    try:
-        return bool(a and b) and os.path.samefile(a, b)
-    except OSError:
-        return os.path.normcase(os.path.abspath(a)) == os.path.normcase(os.path.abspath(b))
+    return docs.same_file(a, b)
 
 
-def _source_document(path):
-    """Already opened document for `path`, or open it HIDDEN (no tab)."""
-    for d in App.listDocuments().values():
-        if _same_file(d.FileName, path):
-            return d
-    try:
-        return App.openDocument(path, True)     # hidden
-    except TypeError:
-        return App.openDocument(path)
+def _source_document(path, keep=None):
+    """Already opened document for `path`, or open it HIDDEN (no tab),
+    keeping `keep` as the active document (see docs.py)."""
+    return docs.open_source(path, keep)
 
 
 def _kind(o):
@@ -345,7 +338,9 @@ def _target_container(doc):
     Assembly of the document, or None (document root)."""
     try:
         import FreeCADGui as Gui
-        view = Gui.ActiveDocument.ActiveView
+        # The view of `doc` itself: the active document may be another one
+        # (e.g. the new part just created)
+        view = Gui.getDocument(doc.Name).ActiveView
         # 26.x records the active assembly under "assembly", 1.0 under "part"
         for key in ("assembly", "part"):
             act = view.getActiveObject(key)
@@ -367,7 +362,7 @@ def insert_component(path, parent_widget=None, freeze=False):
         raise RuntimeError(tr("No active document: open or create the assembly first."))
     if _same_file(doc.FileName, path):
         raise RuntimeError(tr("A file cannot be inserted into itself."))
-    src_doc = _source_document(path)
+    src_doc = _source_document(path, doc)
     cands = _candidates(src_doc)
     if not cands:
         raise RuntimeError(tr("“{name}” contains no Part, Body or solid.").format(name=name))
@@ -408,6 +403,7 @@ def insert_component(path, parent_widget=None, freeze=False):
         except Exception as e:
             App.Console.PrintWarning(
                 tr("Explorer: freezing failed ({error})").format(error=e) + "\n")
+    docs.activate(doc)          # the assembly stays the active document
     try:
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(link)

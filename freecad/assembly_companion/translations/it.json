@@ -183,6 +183,7 @@
   "“{name}” was still in edit mode: edit mode left.": "«{name}» era ancora in modalità di modifica: modalità di modifica abbandonata.",
   "“{name}” is active again.": "«{name}» è di nuovo attivo.",
   "stale active object “{name}” (key '{key}'): cleared.": "oggetto attivo obsoleto «{name}» (chiave '{key}'): cancellato.",
+  "the active document was “{doc}”, not the assembly: “{asm}” made active again.": "il documento attivo era «{doc}», non l'assieme: «{asm}» è di nuovo attivo.",
   "New set": "Nuovo set",
   "Add to current set": "Aggiungi al set corrente",
   "Select only": "Seleziona solo",

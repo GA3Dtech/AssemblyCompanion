@@ -18,6 +18,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
 | `freecad/assembly_companion/selection_sets.py` | Named selection sets stored in the document |
+| `freecad/assembly_companion/docs.py` | Open source files without changing the active document |
 | `freecad/assembly_companion/i18n.py` | `tr()` and language selection |
 | `freecad/assembly_companion/prefs.py` | All settings (`get`/`put`) and the preference page |
 | `freecad/assembly_companion/translations/` | `<code>.json` tables English → language |
@@ -49,8 +50,12 @@ FreeCAD restart (or a module reload).
 - PySide import pattern: `from PySide import ...` with a `PySide6` fallback.
 - Document changes go inside `doc.openTransaction(...)` / `commitTransaction()`
   (one undo step per user action, committed in a `finally`).
-- Source files to insert are opened **hidden** (`App.openDocument(path, True)`)
-  and their saved shapes are used without recompute.
+- Source files are opened with `docs.open_source(path, keep=assembly_doc)` only,
+  never `App.openDocument` directly: opening a document (even hidden) makes it
+  the ACTIVE document, which greys out every Assembly command and locks the
+  assembly. Their saved shapes are used without recompute.
+- Read the active assembly from `Gui.getDocument(doc.Name).ActiveView`, not from
+  `Gui.ActiveDocument` (the active document may be another one).
 - `PartDesign::Body` derives from `Part::Feature`: test for Body **before**
   Part::Feature in type checks.
 - `Document.RootObjects` is not "the visible top of the tree": any object

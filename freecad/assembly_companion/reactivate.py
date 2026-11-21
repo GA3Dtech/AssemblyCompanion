@@ -101,6 +101,22 @@ def _target_assembly(doc, view):
                           "reactivate, then run the command again.").format(n=len(asms)))
 
 
+def _assembly_document():
+    """The only open document holding an assembly and shown in a 3D view,
+    or None."""
+    import FreeCADGui as Gui
+    found = []
+    for d in App.listDocuments().values():
+        if not any(_is_assembly(o) for o in d.Objects):
+            continue
+        try:
+            if Gui.getDocument(d.Name).mdiViewsOfType("Gui::View3DInventor"):
+                found.append(d)
+        except Exception:
+            pass
+    return found[0] if len(found) == 1 else None
+
+
 # ----------------------------------------------------------------------
 #  Repair steps
 # ----------------------------------------------------------------------
@@ -179,6 +195,17 @@ def reactivate(doc=None):
     Returns True when the Assembly commands are enabled again."""
     import FreeCADGui as Gui
     doc = doc or App.ActiveDocument
+    if doc is None or not any(_is_assembly(o) for o in doc.Objects):
+        # Typical lock: a source file opened in the background became the
+        # active document while the 3D view still shows the assembly
+        other = _assembly_document()
+        if other is not None:
+            if doc is not None:
+                _log(tr("the active document was “{doc}”, not the assembly: "
+                        "“{asm}” made active again.").format(doc=doc.Label, asm=other.Label))
+            doc = other
+            from . import docs
+            docs.activate(doc)
     if doc is None:
         raise RuntimeError(tr("No active document."))
     gdoc = Gui.getDocument(doc.Name)
