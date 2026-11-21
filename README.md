@@ -57,3 +57,13 @@ Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26
 The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech).
 
 Licensed under the **LGPL-2.1-or-later**, like FreeCAD itself. No CLA: contributions are welcome under the same license.
+
+### Spirit of the project
+
+This is first of all a free sharing of my own tools. FreeCAD developers, forks and any related project are welcome to take whatever they like from it: a mention of where it comes from, in the code comments, is all I ask.
+
+The goal is not to start a debate or to get everyone to agree on the best way of working. These tools are tuned to the way I work. If you want to work the same way or take inspiration from it, help yourself. If it does not suit you, I am always curious to learn better ways of doing things — but unless there is something concrete to bring, I will not debate it much further.
+
+### About the use of AI
+
+An AI coding agent is used to write this workbench. That does not make it untested: every tool comes from a real need in the workshop, is tested on real projects, and goes through many iterations before it is kept, which in the end gives code of good quality. If this bothers you, thank you for not reporting it — it brings nothing, and it does not stop anyone from borrowing the good ideas for other projects.
