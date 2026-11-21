@@ -12,6 +12,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from . import icon
+from .i18n import tr
 
 
 def _module(name):
@@ -112,53 +113,53 @@ def _selection_sets():
 
 COMMANDS = {
     "AssemblyCompanion_Freeze": _Command(
-        _freeze, "Freeze.svg", "Freeze parts",
-        "Replace linked parts by dead BREP copies stored in the assembly, so it "
-        "reopens identically years later. Selected parts, or all if nothing is "
-        "selected."),
+        _freeze, "Freeze.svg", tr("Freeze parts"),
+        tr("Replace linked parts by dead BREP copies stored in the assembly, so it "
+            "reopens identically years later. Selected parts, or all if nothing is "
+            "selected.")),
     "AssemblyCompanion_Relink": _Command(
-        _relink, "Relink.svg", "Relink to sources",
-        "Point frozen parts back to their source file, to edit them. Selected "
-        "parts, or all if nothing is selected."),
+        _relink, "Relink.svg", tr("Relink to sources"),
+        tr("Point frozen parts back to their source file, to edit them. Selected "
+            "parts, or all if nothing is selected.")),
     "AssemblyCompanion_DeleteJoints": _Command(
-        _delete_joints, "DeleteJoints.svg", "Delete part joints",
-        "Delete every joint (and grounding) of the selected parts, after "
-        "confirmation."),
+        _delete_joints, "DeleteJoints.svg", tr("Delete part joints"),
+        tr("Delete every joint (and grounding) of the selected parts, after "
+            "confirmation.")),
     "AssemblyCompanion_Diagnostic": _Command(
-        _diagnostic, "Diagnostic.svg", "Check frozen assembly",
-        "Check in the report view that every joint reference resolves and that "
-        "frozen copies carry no topological history."),
+        _diagnostic, "Diagnostic.svg", tr("Check frozen assembly"),
+        tr("Check in the report view that every joint reference resolves and that "
+            "frozen copies carry no topological history.")),
     "AssemblyCompanion_Repair": _Command(
-        _repair, "Repair.svg", "Repair frozen copies",
-        "Clean frozen copies made by early versions and rewrite their "
-        "references."),
+        _repair, "Repair.svg", tr("Repair frozen copies"),
+        tr("Clean frozen copies made by early versions and rewrite their "
+            "references.")),
     "AssemblyCompanion_Duplicate": _Command(
-        _duplicate, "Duplicate.svg", "Duplicate components",
-        "Clone the selected components in the assembly: new instances of the "
-        "same parts (frozen or not), same place, without joints. Source files "
-        "are not touched."),
+        _duplicate, "Duplicate.svg", tr("Duplicate components"),
+        tr("Clone the selected components in the assembly: new instances of the "
+            "same parts (frozen or not), same place, without joints. Source files "
+            "are not touched.")),
     "AssemblyCompanion_Reactivate": _Command(
-        _reactivate, "Reactivate.svg", "Reactivate assembly",
-        "Unlock an assembly that can no longer be activated (Assembly commands "
-        "greyed out): close a stuck task panel, leave a pending edit, clear "
-        "stale active objects, then activate the selected assembly."),
+        _reactivate, "Reactivate.svg", tr("Reactivate assembly"),
+        tr("Unlock an assembly that can no longer be activated (Assembly commands "
+            "greyed out): close a stuck task panel, leave a pending edit, clear "
+            "stale active objects, then activate the selected assembly.")),
     "AssemblyCompanion_Align": _Command(
-        _align, "Align.svg", "Align elements",
-        "Place a body by clicking an element on it, then an element on another "
-        "body; adjust flip, offset and rotation."),
+        _align, "Align.svg", tr("Align elements"),
+        tr("Place a body by clicking an element on it, then an element on another "
+            "body; adjust flip, offset and rotation.")),
     "AssemblyCompanion_InsertComponent": _Command(
-        _insert_component, "InsertComponent.svg", "Insert component (visual)",
-        "Browse your parts folder with thumbnails and insert parts into the "
-        "active assembly; source files do not need to be open.",
+        _insert_component, "InsertComponent.svg", tr("Insert component (visual)"),
+        tr("Browse your parts folder with thumbnails and insert parts into the "
+            "active assembly; source files do not need to be open."),
         needs_document=False),
     "AssemblyCompanion_Explorer": _Command(
-        _explorer, "Explorer.svg", "Local parts explorer",
-        "Browse a local master folder of FreeCAD files with thumbnails, in a "
-        "central tab.", needs_document=False),
+        _explorer, "Explorer.svg", tr("Local parts explorer"),
+        tr("Browse a local master folder of FreeCAD files with thumbnails, in a "
+            "central tab."), needs_document=False),
     "AssemblyCompanion_SelectionSets": _Command(
-        _selection_sets, "SelectionSets.svg", "Selection sets",
-        "Panel of named selection sets saved in the document: filter, isolate, "
-        "combine.", needs_document=False),
+        _selection_sets, "SelectionSets.svg", tr("Selection sets"),
+        tr("Panel of named selection sets saved in the document: filter, isolate, "
+            "combine."), needs_document=False),
 }
 
 TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",

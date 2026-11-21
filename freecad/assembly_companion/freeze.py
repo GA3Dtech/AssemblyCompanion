@@ -24,7 +24,7 @@ in the "Figeage" property group.
 Recommended workflow for a modified part:
   select the part -> Relink -> edit the source -> fix joints -> Freeze.
 
-User-facing messages are in French; code comments are in English.
+User-facing texts are in English, translated through i18n.tr().
 
 v1.0 - first consolidated version (tested on FreeCAD 26.3rc2).
        History: references cleared then rewritten after retargeting (no more
@@ -38,6 +38,8 @@ import datetime
 
 import FreeCAD as App
 import Part
+
+from .i18n import tr
 
 VERSION = "1.0"
 GROUPE_COPIES = "Solides_figes"     # group holding the frozen copies
@@ -254,8 +256,9 @@ def appliquer_reecriture(lien, remap=None, nouvelle_cible=None, chemins=None):
             setattr(o, p, [] if 'List' in t else None)   # flush hidden names
             _ecrire(o, p, t, refs)
         except Exception as e:
-            App.Console.PrintWarning("Figeage: impossible d'écrire %s.%s : %s\n"
-                                     % (o.Label, p, e))
+            App.Console.PrintWarning(
+                tr("Freeze: cannot write {obj}.{prop}: {error}").format(
+                    obj=o.Label, prop=p, error=e) + "\n")
     return n
 
 
@@ -432,9 +435,9 @@ def _creer_ou_rafraichir_conteneur(doc, src, parent=None):
         else:
             if not enfant.isDerivedFrom('App::Origin'):
                 App.Console.PrintWarning(
-                    "Figeage: %s / %s (%s) ignoré dans le conteneur : seuls les Body, "
-                    "solides et Part imbriqués sont figés.\n"
-                    % (src.Label, enfant.Label, enfant.TypeId))
+                    tr("Freeze: {part} / {child} ({type}) skipped in the container: only "
+                       "Bodies, solids and nested Parts are frozen.").format(
+                        part=src.Label, child=enfant.Label, type=enfant.TypeId) + "\n")
             continue
         gardes.add(c.Name)
     chemins.update(_chemins_origine(getattr(src, 'Origin', None),
@@ -457,7 +460,8 @@ def _supprimer_fige(doc, o):
         for c in list(o.Group):
             if _est_fige(c):
                 _supprimer_fige(doc, c)
-    App.Console.PrintMessage("Figeage: copie obsolète supprimée : %s\n" % o.Label)
+    App.Console.PrintMessage(
+        tr("Freeze: obsolete copy removed: {name}").format(name=o.Label) + "\n")
     doc.removeObject(o.Name)
 
 
@@ -483,9 +487,9 @@ def figer(doc=None, selection=None):
     doc = doc or App.ActiveDocument
     liens = liens_externes(doc, selection)
     if not liens:
-        App.Console.PrintMessage("Figeage: aucun lien externe à figer.\n")
+        App.Console.PrintMessage(tr("Freeze: no external link to freeze.") + "\n")
         return
-    doc.openTransaction("Figer les composants")
+    doc.openTransaction(tr("Freeze components"))
     try:
         for lien in liens:
             src = lien.LinkedObject
@@ -497,11 +501,13 @@ def figer(doc=None, selection=None):
                 n = appliquer_reecriture(lien, nouvelle_cible=copie)
             else:
                 App.Console.PrintWarning(
-                    "Figeage: %s -> %s (%s) ignoré : seuls les Body, Part::Feature "
-                    "et Part sont gérés.\n" % (lien.Label, src.Label, src.TypeId))
+                    tr("Freeze: {link} -> {target} ({type}) skipped: only Bodies, "
+                       "Part::Features and Parts are supported.").format(
+                        link=lien.Label, target=src.Label, type=src.TypeId) + "\n")
                 continue
-            App.Console.PrintMessage("Figeage: %s figé (%d références rafraîchies)\n"
-                                     % (lien.Label, n))
+            App.Console.PrintMessage(
+                tr("Freeze: {name} frozen ({n} references refreshed)").format(
+                    name=lien.Label, n=n) + "\n")
         doc.recompute()
     finally:
         doc.commitTransaction()
@@ -517,17 +523,18 @@ def relier(doc=None, selection=None):
     doc = doc or App.ActiveDocument
     liens = liens_figes(doc, selection)
     if not liens:
-        App.Console.PrintMessage("Figeage: aucun lien figé.\n")
+        App.Console.PrintMessage(tr("Freeze: no frozen link.") + "\n")
         return
-    doc.openTransaction("Relier aux sources")
+    doc.openTransaction(tr("Relink to sources"))
     try:
         for lien in liens:
             copie = lien.LinkedObject
             doc_src, _ = _ouvrir_source(copie, doc)
             src = _objet_source(copie, doc_src) if doc_src else None
             if src is None:
-                App.Console.PrintError("Figeage: source introuvable pour %s (%s)\n"
-                                       % (lien.Label, copie.FigeFichier))
+                App.Console.PrintError(
+                    tr("Freeze: source not found for {name} ({file})").format(
+                        name=lien.Label, file=copie.FigeFichier) + "\n")
                 continue
             if _est_conteneur_fige(copie):
                 appliquer_reecriture(lien, nouvelle_cible=src,
@@ -535,8 +542,9 @@ def relier(doc=None, selection=None):
             else:
                 # "Face6" stays valid on a Body; flush hidden names of the copy
                 appliquer_reecriture(lien, nouvelle_cible=src)
-            App.Console.PrintMessage("Figeage: %s relié à %s#%s\n"
-                                     % (lien.Label, doc_src.Name, src.Name))
+            App.Console.PrintMessage(
+                tr("Freeze: {name} relinked to {doc}#{obj}").format(
+                    name=lien.Label, doc=doc_src.Name, obj=src.Name) + "\n")
         doc.recompute()
     finally:
         doc.commitTransaction()
@@ -593,8 +601,9 @@ def selection_liens():
                         if _est_lien(l) and l.LinkedObject is cible:
                             ajouter(l)
     if not liens:
-        App.Console.PrintWarning("Figeage: la sélection ne contient aucune pièce d'assemblage "
-                                 "(Link). Rien n'a été fait.\n")
+        App.Console.PrintWarning(
+            tr("Freeze: the selection holds no assembly part (Link). "
+               "Nothing was done.") + "\n")
     return liens
 
 
@@ -658,8 +667,8 @@ def supprimer_liaisons(comps, confirmer=True):
     """Delete every joint of the given parts, after confirmation.
     Undoable in one step. Returns the number of deleted joints."""
     if not comps:
-        App.Console.PrintWarning("Figeage: sélectionnez une ou plusieurs pièces de "
-                                 "l'assemblage.\n")
+        App.Console.PrintWarning(
+            tr("Freeze: select one or more parts of the assembly.") + "\n")
         return 0
     doc = comps[0].Document
     a_suppr = []
@@ -668,8 +677,9 @@ def supprimer_liaisons(comps, confirmer=True):
             if j not in a_suppr:
                 a_suppr.append(j)
     if not a_suppr:
-        App.Console.PrintMessage("Figeage: aucune liaison sur %s.\n"
-                                 % ', '.join(c.Label for c in comps))
+        App.Console.PrintMessage(
+            tr("Freeze: no joint on {names}.").format(
+                names=', '.join(c.Label for c in comps)) + "\n")
         return 0
     if confirmer and App.GuiUp:
         from PySide import QtGui
@@ -677,18 +687,19 @@ def supprimer_liaisons(comps, confirmer=True):
             from PySide import QtWidgets
         except ImportError:
             QtWidgets = QtGui
-        texte = "Supprimer %d liaison(s) de : %s ?\n\n%s" % (
-            len(a_suppr), ', '.join(c.Label for c in comps),
-            '\n'.join('  - ' + j.Label for j in a_suppr[:30]) +
+        texte = tr("Delete {n} joint(s) of: {names}?\n\n{joints}").format(
+            n=len(a_suppr), names=', '.join(c.Label for c in comps),
+            joints='\n'.join('  - ' + j.Label for j in a_suppr[:30]) +
             ('\n  ...' if len(a_suppr) > 30 else ''))
-        r = QtWidgets.QMessageBox.question(None, "Supprimer les liaisons", texte,
+        r = QtWidgets.QMessageBox.question(None, tr("Delete joints"), texte,
                                            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No)
         if r != QtWidgets.QMessageBox.Yes:
             return 0
-    doc.openTransaction("Supprimer les liaisons")
+    doc.openTransaction(tr("Delete joints"))
     try:
         for j in a_suppr:
-            App.Console.PrintMessage("Figeage: liaison supprimée : %s\n" % j.Label)
+            App.Console.PrintMessage(
+                tr("Freeze: joint deleted: {name}").format(name=j.Label) + "\n")
             doc.removeObject(j.Name)
         doc.recompute()
     finally:
@@ -713,12 +724,12 @@ def diagnostic(doc=None):
     object and file it is attached to. Returns the number of broken refs."""
     doc = doc or App.ActiveDocument
     pr = App.Console.PrintMessage
-    pr("===== Diagnostic figeage v%s : %s (FreeCAD %s) =====\n"
-       % (VERSION, doc.Label, _version_fc()))
+    pr(tr("===== Freeze diagnostic v{version}: {doc} (FreeCAD {fc}) =====").format(
+        version=VERSION, doc=doc.Label, fc=_version_fc()) + "\n")
     for c in doc.Objects:
         if _est_copie_figee(c):
-            pr("Copie %-30s historique topo = %s  (doit être 0)\n"
-               % (c.Label, _taille_map(c.Shape)))
+            pr(tr("Copy {label:<30} topological history = {size}  (must be 0)").format(
+                label=c.Label, size=_taille_map(c.Shape)) + "\n")
     n_ok = n_ko = 0
     for o in doc.Objects:
         if not hasattr(o, 'JointType'):
@@ -737,18 +748,20 @@ def diagnostic(doc=None):
                     ok = False
                 n_ok, n_ko = (n_ok + 1, n_ko) if ok else (n_ok, n_ko + 1)
                 if base is None:
-                    desc = 'aucun objet'
+                    desc = tr("no object")
                 else:
                     cible = getattr(base, 'LinkedObject', None)
-                    desc = '%s (%s, fichier %s)' % (base.Label, base.TypeId,
-                                                     base.Document.Label)
+                    desc = tr("{label} ({type}, file {file})").format(
+                        label=base.Label, type=base.TypeId, file=base.Document.Label)
                     if cible is not None:
-                        desc += ' -> %s (%s, fichier %s)' % (cible.Label, cible.TypeId,
-                                                              cible.Document.Label)
+                        desc += ' -> ' + tr("{label} ({type}, file {file})").format(
+                            label=cible.Label, type=cible.TypeId, file=cible.Document.Label)
                 (pr if ok else App.Console.PrintError)(
-                    "  %s %-12s %s : %-10s sur %s\n"
-                    % ('OK' if ok else 'KO', o.Label, p, sub, desc))
-    pr("===== %d référence(s) OK, %d cassée(s) =====\n" % (n_ok, n_ko))
+                    "  " + tr("{status} {joint:<12} {ref}: {sub:<10} on {target}").format(
+                        status=tr("OK") if ok else tr("KO"), joint=o.Label, ref=p,
+                        sub=sub, target=desc) + "\n")
+    pr(tr("===== {ok} reference(s) OK, {broken} broken =====").format(
+        ok=n_ok, broken=n_ko) + "\n")
     return n_ko
 
 
@@ -757,14 +770,15 @@ def reparer(doc=None):
     their references (also strips '?' markers). Meant for assemblies frozen
     with early versions of this module."""
     doc = doc or App.ActiveDocument
-    doc.openTransaction("Réparer les copies figées")
+    doc.openTransaction(tr("Repair frozen copies"))
     try:
         for c in [o for o in doc.Objects if _est_copie_figee(o)]:
             c.Shape = forme_propre(c.Shape)
             for l in doc.Objects:
                 if _est_lien(l) and l.LinkedObject is c:
                     appliquer_reecriture(l)
-            App.Console.PrintMessage("Figeage: copie nettoyée : %s\n" % c.Label)
+            App.Console.PrintMessage(
+                tr("Freeze: copy cleaned: {name}").format(name=c.Label) + "\n")
         doc.recompute()
     finally:
         doc.commitTransaction()

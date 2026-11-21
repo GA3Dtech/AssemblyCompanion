@@ -20,10 +20,10 @@ Frame taken on each element:
   - circular edge         : center, Z = circle axis
   - straight edge         : midpoint, Z = direction
   - vertex                : point, no orientation (translation only)
-By default the Z axes are opposed (faces in contact); "Inverser" makes them
+By default the Z axes are opposed (faces in contact); "Flip" makes them
 point the same way.
 
-User-facing texts are in French; code comments are in English.
+User-facing texts are in English, translated through i18n.tr().
 
 v1.0 - first consolidated version (tested on FreeCAD 26.3rc2).
        History: full selection path recovered from the root (FreeCAD may pass
@@ -40,6 +40,8 @@ try:
 except ImportError:
     from PySide import QtGui as QtWidgets, QtCore
 
+from .i18n import tr
+
 V = App.Vector
 
 VERSION = "1.0"
@@ -54,7 +56,7 @@ TRACE = False
 
 def trace(msg):
     if TRACE:
-        App.Console.PrintMessage("[Aligner] " + msg + "\n")
+        App.Console.PrintMessage("[Align] " + msg + "\n")
 
 
 
@@ -174,7 +176,7 @@ class Pick(object):
         self.chaine = self.top.getSubObjectList(chemin) if chemin else [self.top]
         el = Part.getShape(self.top, sub, needSubElement=True)
         if el.isNull():
-            raise ValueError("élément vide")
+            raise ValueError(tr("empty element"))
         self.repere, self.oriente = repere_element(el)
         self.texte = '%s  [%s]' % (self.chaine[-1].Label if self.chaine else self.top.Label,
                                    sub.split('.')[-1])
@@ -243,7 +245,7 @@ class Gizmo(object):
         self.timer = QtCore.QTimer()
         self.timer.timeout.connect(self._surveiller)
         self.timer.start(40)
-        App.Console.PrintMessage("Aligner : gizmo = %s, taille = %.1f mm\n" % (self.nom, taille))
+        App.Console.PrintMessage("Align: gizmo = %s, size = %.1f mm\n" % (self.nom, taille))
 
     def _regler_taille(self, taille):
         # FreeCAD's dragger normally auto-scales with the camera (not reachable
@@ -258,7 +260,7 @@ class Gizmo(object):
                 if f is not None:
                     f.set(val)
             except Exception as e:
-                App.Console.PrintWarning("Aligner : réglage %s impossible (%s)\n" % (nom, e))
+                App.Console.PrintWarning("Align: cannot set %s (%s)\n" % (nom, e))
 
     def _etat(self):
         t = _lire_vec(self.f_trans)
@@ -284,7 +286,7 @@ class Gizmo(object):
             t, r = self._etat()
         except Exception as e:
             if not self.erreur_signalee:
-                App.Console.PrintError("Aligner : lecture du gizmo impossible (%s)\n" % e)
+                App.Console.PrintError("Align: cannot read the gizmo (%s)\n" % e)
                 self.erreur_signalee = True
             return
         if self.dernier is not None:
@@ -294,13 +296,13 @@ class Gizmo(object):
                 return
         self.dernier = (t, r)
         if DEBUG_GIZMO:
-            App.Console.PrintMessage("Aligner : gizmo lu  T=%s  R=%s\n" % (t, r.toEuler()))
+            App.Console.PrintMessage("Align: gizmo read  T=%s  R=%s\n" % (t, r.toEuler()))
         try:
             self.on_move(App.Placement(V(*t), r))
         except Exception as e:
             import traceback
-            App.Console.PrintError("Aligner : gizmo arrêté (%s)\n%s\n"
-                                   % (e, traceback.format_exc()))
+            App.Console.PrintError(tr("Align: gizmo stopped ({error})").format(error=e)
+                                   + "\n%s\n" % traceback.format_exc())
             self.timer.stop()
 
     def retirer(self):
@@ -326,14 +328,14 @@ class PanneauAligner(object):
         self.pl_initiales = {}      # object -> initial Placement
         self.etape = 'origine'
         self.gizmo = None
-        self.doc.openTransaction("Aligner éléments")
+        self.doc.openTransaction(tr("Align elements"))
         self._construire_ui()
         Gui.Selection.clearSelection()
         try:
             Gui.Selection.addObserver(self, 0)    # 0 = full path, Links not resolved
         except TypeError:
             Gui.Selection.addObserver(self)
-        trace("observateur de sélection installé")
+        trace("selection observer installed")
 
     # ---- UI ---------------------------------------------------------------
     def _spin(self, mini, maxi, pas, suffixe, dec=3):
@@ -348,7 +350,7 @@ class PanneauAligner(object):
 
     def _construire_ui(self):
         self.form = QtWidgets.QWidget()
-        self.form.setWindowTitle("Aligner éléments")
+        self.form.setWindowTitle(tr("Align elements"))
         lay = QtWidgets.QVBoxLayout(self.form)
 
         self.lbl_etat = QtWidgets.QLabel()
@@ -358,25 +360,25 @@ class PanneauAligner(object):
         g = QtWidgets.QFormLayout()
         self.lbl_orig = QtWidgets.QLabel('—')
         self.lbl_cible = QtWidgets.QLabel('—')
-        b_o = QtWidgets.QPushButton("Repiquer l'origine")
-        b_c = QtWidgets.QPushButton("Repiquer la cible")
+        b_o = QtWidgets.QPushButton(tr("Pick origin again"))
+        b_c = QtWidgets.QPushButton(tr("Pick target again"))
         b_o.clicked.connect(lambda: self._passer('origine'))
         b_c.clicked.connect(lambda: self._passer('cible'))
-        g.addRow("Origine :", self.lbl_orig)
+        g.addRow(tr("Origin:"), self.lbl_orig)
         g.addRow("", b_o)
-        g.addRow("Cible :", self.lbl_cible)
+        g.addRow(tr("Target:"), self.lbl_cible)
         g.addRow("", b_c)
         self.cb_mobile = QtWidgets.QComboBox()
         self.cb_mobile.currentIndexChanged.connect(self._changer_mobile)
-        g.addRow("Objet déplacé :", self.cb_mobile)
+        g.addRow(tr("Moved object:"), self.cb_mobile)
         lay.addLayout(g)
 
-        self.ck_inv = QtWidgets.QCheckBox("Inverser (Z dans le même sens)")
-        self.ck_trans = QtWidgets.QCheckBox("Translation seule (garder l'orientation)")
+        self.ck_inv = QtWidgets.QCheckBox(tr("Flip (Z in the same direction)"))
+        self.ck_trans = QtWidgets.QCheckBox(tr("Translation only (keep orientation)"))
         for ck in (self.ck_inv, self.ck_trans):
             ck.toggled.connect(self.appliquer)
             lay.addWidget(ck)
-        self.ck_gizmo = QtWidgets.QCheckBox("Afficher le gizmo (expérimental)")
+        self.ck_gizmo = QtWidgets.QCheckBox(tr("Show gizmo (experimental)"))
         self.ck_gizmo.setChecked(False)
         self.ck_gizmo.toggled.connect(self._basculer_gizmo)
         lay.addWidget(self.ck_gizmo)
@@ -388,19 +390,19 @@ class PanneauAligner(object):
         self.rz = self._spin(-360, 360, 15.0, ' °', 2)
         self.rx = self._spin(-360, 360, 15.0, ' °', 2)
         self.ry = self._spin(-360, 360, 15.0, ' °', 2)
-        g2.addRow("Décalage X :", self.dx)
-        g2.addRow("Décalage Y :", self.dy)
-        g2.addRow("Décalage Z :", self.dz)
+        g2.addRow(tr("Offset X:"), self.dx)
+        g2.addRow(tr("Offset Y:"), self.dy)
+        g2.addRow(tr("Offset Z:"), self.dz)
         hz = QtWidgets.QHBoxLayout()
         hz.addWidget(self.rz)
         b90 = QtWidgets.QPushButton("+90°")
         b90.clicked.connect(lambda: self.rz.setValue(((self.rz.value() + 90 + 180) % 360) - 180))
         hz.addWidget(b90)
-        g2.addRow("Rotation Z :", hz)
-        g2.addRow("Rotation X :", self.rx)
-        g2.addRow("Rotation Y :", self.ry)
+        g2.addRow(tr("Rotation Z:"), hz)
+        g2.addRow(tr("Rotation X:"), self.rx)
+        g2.addRow(tr("Rotation Y:"), self.ry)
         lay.addLayout(g2)
-        b_raz = QtWidgets.QPushButton("Remettre décalages à zéro")
+        b_raz = QtWidgets.QPushButton(tr("Reset offsets"))
         b_raz.clicked.connect(self._raz)
         lay.addWidget(b_raz)
         lay.addStretch()
@@ -410,11 +412,11 @@ class PanneauAligner(object):
         if msg:
             self.lbl_etat.setText(msg)
         elif self.etape == 'origine':
-            self.lbl_etat.setText("<b>1.</b> Cliquez l'élément ORIGINE sur l'objet à déplacer.")
+            self.lbl_etat.setText(tr("<b>1.</b> Click the ORIGIN element on the object to move."))
         elif self.etape == 'cible':
-            self.lbl_etat.setText("<b>2.</b> Cliquez l'élément CIBLE sur un autre objet.")
+            self.lbl_etat.setText(tr("<b>2.</b> Click the TARGET element on another object."))
         else:
-            self.lbl_etat.setText("Aligné. Ajustez puis OK (ou repiquez un élément).")
+            self.lbl_etat.setText(tr("Aligned. Adjust, then OK (or pick an element again)."))
 
     def _raz(self):
         for s in (self.dx, self.dy, self.dz, self.rx, self.ry, self.rz):
@@ -430,24 +432,24 @@ class PanneauAligner(object):
 
     # ---- Selection observer -------------------------------------------
     def addSelection(self, doc, obj, sub, pnt):
-        trace("clic reçu : doc=%s obj=%s sub='%s' (étape %s)" % (doc, obj, sub, self.etape))
+        trace("click received: doc=%s obj=%s sub='%s' (step %s)" % (doc, obj, sub, self.etape))
         obj, sub = self._chemin_complet(doc, obj, sub)
-        trace("  chemin complet : obj=%s sub='%s'" % (obj, sub))
+        trace("  full path: obj=%s sub='%s'" % (obj, sub))
         if self.etape not in ('origine', 'cible'):
             return
         if not sub:
-            self._maj_etat("Cliquez une FACE, une ARÊTE ou un SOMMET dans la vue 3D "
-                           "(pas un objet entier dans l'arbre).")
-            trace("ignoré : pas d'élément (objet entier sélectionné)")
+            self._maj_etat(tr("Click a FACE, an EDGE or a VERTEX in the 3D view "
+                              "(not a whole object in the tree)."))
+            trace("ignored: no element (whole object selected)")
             return
         try:
             p = Pick(doc, obj, sub)
         except Exception as e:
             import traceback
-            trace("élément non exploitable : %s\n%s" % (e, traceback.format_exc()))
-            self._maj_etat("Élément non exploitable (%s), cliquez-en un autre." % e)
+            trace("unusable element: %s\n%s" % (e, traceback.format_exc()))
+            self._maj_etat(tr("Unusable element ({error}), click another one.").format(error=e))
             return
-        trace("  chaîne = %s | repère = %s | orienté = %s"
+        trace("  chain = %s | frame = %s | oriented = %s"
               % (' > '.join(o.Label for o in p.chaine), p.repere, p.oriente))
         if self.etape == 'origine':
             self._restaurer()
@@ -457,8 +459,8 @@ class PanneauAligner(object):
             self.etape = 'cible' if self.cible is None else 'fait'
         else:
             if self.mobile is not None and self.mobile in p.chaine:
-                trace("cible refusée : elle est sur l'objet déplacé %s" % self.mobile.Label)
-                self._maj_etat("La cible est sur l'objet déplacé : choisissez un autre objet.")
+                trace("target rejected: it is on the moved object %s" % self.mobile.Label)
+                self._maj_etat(tr("The target is on the moved object: choose another object."))
                 return
             self.cible = p
             self.lbl_cible.setText(p.texte)
@@ -478,16 +480,16 @@ class PanneauAligner(object):
                             (obj == sel.ObjectName or ('.' + obj + '.') in ('.' + s)):
                         return sel.ObjectName, s
         except Exception as e:
-            trace("  chemin complet introuvable (%s)" % e)
+            trace("  full path not found (%s)" % e)
         return obj, sub
 
     # ---- Moved object -----------------------------------------------------
     def _remplir_mobiles(self):
         ch = self.origine.chaine
         self.cands = candidats_mobiles(ch)
-        trace("  objets déplaçables : %s" % [ch[i].Label for i in self.cands])
+        trace("  movable objects: %s" % [ch[i].Label for i in self.cands])
         if not self.cands:
-            self._maj_etat("Aucun objet déplaçable trouvé pour cet élément.")
+            self._maj_etat(tr("No movable object found for this element."))
         self.cb_mobile.blockSignals(True)
         self.cb_mobile.clear()
         for i in self.cands:
@@ -510,8 +512,8 @@ class PanneauAligner(object):
         # origin frame expressed in the local frame of the moved object
         self.local_orig = pl_obj_global.inverse().multiply(self.origine.repere)
         if any(o.isDerivedFrom('Assembly::AssemblyObject') for o in ch[:self.idx_mobile]):
-            self._maj_etat("Attention : pièce dans un assemblage Assembly. Si elle a des "
-                           "liaisons ou est bloquée, le solveur la remettra en place.")
+            self._maj_etat(tr("Warning: part inside an Assembly. If it has joints "
+                              "or is grounded, the solver will move it back."))
         self.appliquer()
 
     def _restaurer(self):
@@ -522,7 +524,7 @@ class PanneauAligner(object):
     # ---- Computation ------------------------------------------------------------
     def appliquer(self, *_, depuis_gizmo=False):
         if not (self.origine and self.cible and self.mobile):
-            trace("appliquer : en attente (origine=%s cible=%s mobile=%s)"
+            trace("apply: waiting (origin=%s target=%s moved=%s)"
                   % (bool(self.origine), bool(self.cible),
                      self.mobile.Label if self.mobile else None))
             return
@@ -545,7 +547,7 @@ class PanneauAligner(object):
             glob = base.multiply(off).multiply(self.local_orig.inverse())
         avant = App.Placement(self.mobile.Placement)
         self.mobile.Placement = self.pl_parent.inverse().multiply(glob)
-        trace("appliquer : %s  %s  ->  %s" % (self.mobile.Label, avant, self.mobile.Placement))
+        trace("apply: %s  %s  ->  %s" % (self.mobile.Label, avant, self.mobile.Placement))
         self._maj_gizmo(base, off, depuis_gizmo)
         self.doc.recompute()
 
@@ -571,8 +573,8 @@ class PanneauAligner(object):
                 self.gizmo.set_offset(off)
         except Exception as e:
             import traceback
-            App.Console.PrintError("Aligner : gizmo indisponible (%s)\n%s\n"
-                                   % (e, traceback.format_exc()))
+            App.Console.PrintError(tr("Align: gizmo unavailable ({error})").format(error=e)
+                                   + "\n%s\n" % traceback.format_exc())
             self.gizmo = False
 
     def _gizmo_bouge(self, pl):
@@ -621,8 +623,8 @@ class PanneauAligner(object):
 def show():
     """Open the alignment task panel (entry point of the command)."""
     if App.ActiveDocument is None:
-        App.Console.PrintError("Aligner : aucun document actif.\n")
+        App.Console.PrintError(tr("Align: no active document.") + "\n")
     elif Gui.Control.activeDialog():
-        App.Console.PrintError("Aligner : fermez d'abord le panneau de tâche en cours.\n")
+        App.Console.PrintError(tr("Align: close the current task panel first.") + "\n")
     else:
         Gui.Control.showDialog(PanneauAligner())

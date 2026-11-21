@@ -23,12 +23,13 @@ placement, colours and scale, in the same assembly. Source files are not
 touched; joints are not copied (the clone is free, ready to be dragged or
 joined).
 
-User-facing messages are in French; code comments are in English.
+User-facing texts are in English, translated through i18n.tr().
 """
 
 import FreeCAD as App
 
 from . import freeze
+from .i18n import tr
 
 
 def _parent_assembly(comp):
@@ -63,16 +64,17 @@ def duplicate(doc=None, comps=None):
     if comps is None:
         comps = freeze.selection_composants()
     if not comps:
-        raise RuntimeError("Sélectionnez un ou plusieurs composants de l'assemblage "
-                           "(dans l'arbre ou une face dans la vue 3D).")
-    doc.openTransaction("Dupliquer les composants")
+        raise RuntimeError(tr("Select one or more components of the assembly "
+                              "(in the tree, or a face in the 3D view)."))
+    doc.openTransaction(tr("Duplicate components"))
     try:
         clones = [_clone(doc, c) for c in comps]
         doc.recompute()
     finally:
         doc.commitTransaction()
     for c, n in zip(comps, clones):
-        App.Console.PrintMessage("Dupliquer : %s -> %s\n" % (c.Label, n.Label))
+        App.Console.PrintMessage(tr("Duplicate: {source} -> {clone}").format(
+            source=c.Label, clone=n.Label) + "\n")
     try:
         Gui.Selection.clearSelection()
         for n in clones:

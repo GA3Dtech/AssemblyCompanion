@@ -35,7 +35,7 @@ Speed-ups over the original macro (3600 files on a network share):
     pushed to the GUI by a timer (no blocking, no processEvents loop);
   * a single style sheet for all cards instead of one per card.
 
-User-facing texts are in French; code comments are in English.
+User-facing texts are in English, translated through i18n.tr().
 """
 
 import os
@@ -52,6 +52,9 @@ try:
 except ImportError:                       # outside FreeCAD (tests)
     from PySide6 import QtWidgets, QtCore, QtGui
 
+from . import prefs
+from .i18n import tr
+
 VERSION = "1.0"
 
 # ----------------------------------------------------------------------
@@ -66,7 +69,6 @@ STRIP_H = CARD_H + 26   # strip height (card + scroll bar)
 WORKERS = 16            # parallel thumbnail extractions (I/O bound)
 BATCH_PER_TICK = 60     # thumbnails applied to the GUI per timer tick
 
-PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/AssemblyCompanion"
 PISTOCK_PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/PiStock"
 PARAM_DIR_KEY = "LocalMasterDir"
 PARAM_FREEZE_KEY = "FreezeOnInsert"
@@ -89,13 +91,9 @@ QScrollArea { border: none; }
 # ----------------------------------------------------------------------
 #  Parameters and cache location
 # ----------------------------------------------------------------------
-def _params():
-    return App.ParamGet(PARAM_PATH)
-
-
 def get_saved_dir():
     try:
-        d = _params().GetString(PARAM_DIR_KEY, "")
+        d = prefs.get(PARAM_DIR_KEY)
         if not d:   # reuse the PiStock setting the first time
             d = App.ParamGet(PISTOCK_PARAM_PATH).GetString(PARAM_DIR_KEY, "")
         return d
@@ -105,21 +103,21 @@ def get_saved_dir():
 
 def set_saved_dir(path):
     try:
-        _params().SetString(PARAM_DIR_KEY, path or "")
+        prefs.put(PARAM_DIR_KEY, path or "")
     except Exception:
         pass
 
 
 def get_freeze_on_insert():
     try:
-        return _params().GetBool(PARAM_FREEZE_KEY, False)
+        return prefs.get(PARAM_FREEZE_KEY)
     except Exception:
         return False
 
 
 def set_freeze_on_insert(value):
     try:
-        _params().SetBool(PARAM_FREEZE_KEY, bool(value))
+        prefs.put(PARAM_FREEZE_KEY, bool(value))
     except Exception:
         pass
 
@@ -366,13 +364,13 @@ def insert_component(path, parent_widget=None, freeze=False):
     doc = App.ActiveDocument
     name = os.path.basename(path)
     if doc is None:
-        raise RuntimeError("Aucun document actif : ouvrez ou créez l'assemblage d'abord.")
+        raise RuntimeError(tr("No active document: open or create the assembly first."))
     if _same_file(doc.FileName, path):
-        raise RuntimeError("Impossible d'insérer un fichier dans lui-même.")
+        raise RuntimeError(tr("A file cannot be inserted into itself."))
     src_doc = _source_document(path)
     cands = _candidates(src_doc)
     if not cands:
-        raise RuntimeError("« %s » ne contient ni Part, ni Body, ni solide." % name)
+        raise RuntimeError(tr("“{name}” contains no Part, Body or solid.").format(name=name))
     obj = cands[0][0]
     if len(cands) > 1:
         # Indent nested objects to show the tree; add the internal name when
@@ -384,13 +382,13 @@ def insert_component(path, parent_widget=None, freeze=False):
                                     o.TypeId.split("::")[-1])
                   for o, d in cands]
         choix, ok = QtWidgets.QInputDialog.getItem(
-            parent_widget, "Insérer un composant",
-            "« %s » contient plusieurs objets :" % name, labels, 0, False)
+            parent_widget, tr("Insert component"),
+            tr("“{name}” contains several objects:").format(name=name), labels, 0, False)
         if not ok:
             return None
         obj = cands[labels.index(choix)][0]
     container = _target_container(doc)
-    doc.openTransaction("Insérer un composant")
+    doc.openTransaction(tr("Insert component"))
     try:
         link = doc.addObject("App::Link", obj.Name)
         link.setLink(obj)
@@ -400,14 +398,16 @@ def insert_component(path, parent_widget=None, freeze=False):
         doc.recompute()
     finally:
         doc.commitTransaction()
-    App.Console.PrintMessage("Explorateur : %s inséré dans %s\n"
-                             % (obj.Label, container.Label if container else doc.Label))
+    App.Console.PrintMessage(
+        tr("Explorer: {name} inserted into {target}").format(
+            name=obj.Label, target=container.Label if container else doc.Label) + "\n")
     if freeze:
         try:
             from . import freeze
             freeze.figer(doc, [link])
         except Exception as e:
-            App.Console.PrintWarning("Explorateur : figeage impossible (%s)\n" % e)
+            App.Console.PrintWarning(
+                tr("Explorer: freezing failed ({error})").format(error=e) + "\n")
     try:
         Gui.Selection.clearSelection()
         Gui.Selection.addSelection(link)
@@ -454,7 +454,7 @@ class FileCard(QtWidgets.QFrame):
 
     def set_image(self, img):
         if img is None:
-            self.thumb.setText("(pas de\nvignette)")
+            self.thumb.setText(tr("(no\nthumbnail)"))
             return
         pix = QtGui.QPixmap.fromImage(img).scaled(
             THUMB, THUMB, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
@@ -502,37 +502,37 @@ class ExplorerWidget(QtWidgets.QWidget):
         main.setSpacing(8)
 
         row = QtWidgets.QHBoxLayout()
-        row.addWidget(QtWidgets.QLabel("Dossier master :"))
+        row.addWidget(QtWidgets.QLabel(tr("Master folder:")))
         self.path_edit = QtWidgets.QLineEdit()
         self.path_edit.returnPressed.connect(self.refresh)
         row.addWidget(self.path_edit, 1)
-        b = QtWidgets.QPushButton("Parcourir…")
+        b = QtWidgets.QPushButton(tr("Browse…"))
         b.clicked.connect(self._browse)
         row.addWidget(b)
-        b = QtWidgets.QPushButton("Scanner")
-        b.setToolTip("Relire le dossier (les vignettes inchangées restent en cache)")
+        b = QtWidgets.QPushButton(tr("Scan"))
+        b.setToolTip(tr("Read the folder again (unchanged thumbnails stay cached)"))
         b.clicked.connect(self.refresh)
         row.addWidget(b)
         main.addLayout(row)
 
         row = QtWidgets.QHBoxLayout()
         self.filter_edit = QtWidgets.QLineEdit()
-        self.filter_edit.setPlaceholderText("Filtrer par nom de fichier ou de dossier…")
+        self.filter_edit.setPlaceholderText(tr("Filter by file or folder name…"))
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(lambda *_: self.filter_timer.start(200))
         row.addWidget(self.filter_edit, 1)
         self.mode_combo = QtWidgets.QComboBox()
-        self.mode_combo.addItem("Clic = ouvrir", "open")
-        self.mode_combo.addItem("Clic = insérer dans l'assemblage", "insert")
+        self.mode_combo.addItem(tr("Click = open"), "open")
+        self.mode_combo.addItem(tr("Click = insert into the assembly"), "insert")
         self.mode_combo.setCurrentIndex(1 if self.mode == "insert" else 0)
         self.mode_combo.currentIndexChanged.connect(
             lambda *_: setattr(self, "mode", self.mode_combo.currentData()))
         row.addWidget(self.mode_combo)
         main.addLayout(row)
 
-        self.freeze_check = QtWidgets.QCheckBox("Figer à l'insertion (Body uniquement)")
-        self.freeze_check.setToolTip("Insère puis fige aussitôt la pièce "
-                                     "(Assembly Companion)")
+        self.freeze_check = QtWidgets.QCheckBox(tr("Freeze on insertion (Body only)"))
+        self.freeze_check.setToolTip(tr("Insert the part, then freeze it at once "
+                                        "(Assembly Companion)"))
         self.freeze_check.setChecked(get_freeze_on_insert())
         self.freeze_check.toggled.connect(set_freeze_on_insert)
         main.addWidget(self.freeze_check)
@@ -556,7 +556,7 @@ class ExplorerWidget(QtWidgets.QWidget):
     def _browse(self):
         start = self.path_edit.text() or os.path.expanduser("~")
         path = QtWidgets.QFileDialog.getExistingDirectory(
-            self, "Choisir le dossier master à explorer", start)
+            self, tr("Choose the master folder to explore"), start)
         if path:
             self.path_edit.setText(path)
             self.refresh()
@@ -566,15 +566,15 @@ class ExplorerWidget(QtWidgets.QWidget):
         master = self.path_edit.text().strip()
         set_saved_dir(master)
         if not master or not os.path.isdir(master):
-            self._show_message("Dossier introuvable : %s" % master if master else
-                               "Entrez un dossier master ci-dessus, puis « Scanner ».")
+            self._show_message(tr("Folder not found: {path}").format(path=master) if master else
+                               tr("Enter a master folder above, then click “Scan”."))
             return
         cached = load_scan_cache(master)
         if cached:
             self._build(master, cached)            # instant display from cache
-            self.status.setText(self.status.text() + "   (vérification du dossier…)")
+            self.status.setText(self.status.text() + "   " + tr("(checking the folder…)"))
         else:
-            self._show_message("Analyse du dossier…")
+            self._show_message(tr("Scanning the folder…"))
         # Background rescan; the view is rebuilt only if something changed
         ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
         self.scan_future = ex.submit(scan_master, master)
@@ -589,7 +589,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         try:
             scan = f.result()
         except Exception as e:
-            self.status.setText("Erreur d'analyse : %s" % e)
+            self.status.setText(tr("Scan error: {error}").format(error=e))
             return
         save_scan_cache(self.scan_master, scan)
         if scan != self.current_scan:
@@ -600,7 +600,7 @@ class ExplorerWidget(QtWidgets.QWidget):
     # --- Display -------------------------------------------------------
     def _summary(self, scan):
         total = sum(len(v) for v in scan.values())
-        return "%d fichier(s) dans %d dossier(s)" % (total, len(scan))
+        return tr("{files} file(s) in {folders} folder(s)").format(files=total, folders=len(scan))
 
     def _show_message(self, text):
         self._stop_loading()
@@ -622,7 +622,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         self._stop_loading()
         self.current_scan = scan
         if not scan:
-            self._show_message("Aucun fichier FreeCAD (.FCStd) sous ce dossier.")
+            self._show_message(tr("No FreeCAD file (.FCStd) under this folder."))
             return
         # Folders holding files + all their parents up to master
         relevant = {master}
@@ -695,11 +695,11 @@ class ExplorerWidget(QtWidgets.QWidget):
         icon.setPixmap(self.style().standardIcon(sp).pixmap(16, 16))
         header.addWidget(icon)
         rel = "" if depth == 0 else os.path.relpath(path, master)
-        btn = QtWidgets.QPushButton("(master)" if depth == 0 else os.path.basename(path))
+        btn = QtWidgets.QPushButton(tr("(master)") if depth == 0 else os.path.basename(path))
         btn.setObjectName("folder")
         btn.setFlat(True)
         btn.setCursor(QtCore.Qt.PointingHandCursor)
-        btn.setToolTip("Ouvrir ce dossier dans le gestionnaire de fichiers")
+        btn.setToolTip(tr("Open this folder in the file manager"))
         btn.clicked.connect(lambda checked=False, p=path: self.open_in_os(p))
         header.addWidget(btn)
         if rel:
@@ -756,7 +756,7 @@ class ExplorerWidget(QtWidgets.QWidget):
             shown += n
         self.tree_container.setUpdatesEnabled(True)
         if txt and self.current_scan:
-            self.status.setText("%d fichier(s) correspondent à « %s »" % (shown, txt))
+            self.status.setText(tr("{n} file(s) match “{text}”").format(n=shown, text=txt))
         elif self.current_scan:
             self.status.setText(self._summary(self.current_scan))
 
@@ -769,9 +769,9 @@ class ExplorerWidget(QtWidgets.QWidget):
 
     def card_menu(self, card, event):
         menu = QtWidgets.QMenu(self)
-        menu.addAction("Insérer dans l'assemblage actif", lambda: self.insert_file(card.path))
-        menu.addAction("Ouvrir", lambda: self.open_file(card.path))
-        menu.addAction("Ouvrir le dossier", lambda: self.open_in_os(os.path.dirname(card.path)))
+        menu.addAction(tr("Insert into the active assembly"), lambda: self.insert_file(card.path))
+        menu.addAction(tr("Open"), lambda: self.open_file(card.path))
+        menu.addAction(tr("Open folder"), lambda: self.open_in_os(os.path.dirname(card.path)))
         pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") \
             else event.globalPos()
         menu.exec(pos) if hasattr(menu, "exec") else menu.exec_(pos)
@@ -784,17 +784,21 @@ class ExplorerWidget(QtWidgets.QWidget):
             finally:
                 QtWidgets.QApplication.restoreOverrideCursor()
             if link is not None:
-                self.status.setText("« %s » inséré." % link.Label)
+                self.status.setText(tr("“{name}” inserted.").format(name=link.Label))
         except Exception as e:
-            App.Console.PrintError("Explorateur : insertion impossible : %s\n" % e)
-            QtWidgets.QMessageBox.warning(self, "Insertion impossible", str(e))
+            App.Console.PrintError(
+                tr("Explorer: insertion failed: {error}").format(error=e) + "\n")
+            QtWidgets.QMessageBox.warning(self, tr("Insertion failed"), str(e))
 
     def open_file(self, path):
         try:
             App.openDocument(path)
         except Exception as e:
-            App.Console.PrintError("Explorateur : impossible d'ouvrir %s : %s\n" % (path, e))
-            QtWidgets.QMessageBox.warning(self, "Erreur", "Impossible d'ouvrir\n%s\n%s" % (path, e))
+            App.Console.PrintError(
+                tr("Explorer: cannot open {path}: {error}").format(path=path, error=e) + "\n")
+            QtWidgets.QMessageBox.warning(
+                self, tr("Error"),
+                tr("Cannot open\n{path}\n{error}").format(path=path, error=e))
 
     def open_in_os(self, path):
         QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))
@@ -808,7 +812,7 @@ class ExplorerWidget(QtWidgets.QWidget):
 # ----------------------------------------------------------------------
 #  Integration in FreeCAD
 # ----------------------------------------------------------------------
-TAB_TITLE = "Explorateur local"
+TAB_TITLE = tr("Local explorer")
 DOCK_NAME = "AssemblyInsertComponentDock"
 
 
@@ -818,7 +822,7 @@ def show_explorer_tab():
     mw = Gui.getMainWindow()
     mdi = mw.findChild(QtWidgets.QMdiArea)
     if mdi is None:
-        App.Console.PrintError("Zone centrale de FreeCAD introuvable.\n")
+        App.Console.PrintError(tr("FreeCAD central area not found.") + "\n")
         return
     for sub in mdi.subWindowList():
         if sub.windowTitle() == TAB_TITLE:
@@ -843,7 +847,7 @@ def show_insert_dock():
         d.show()
         d.raise_()
         return d
-    dock = QtWidgets.QDockWidget("Insérer un composant", mw)
+    dock = QtWidgets.QDockWidget(tr("Insert component"), mw)
     dock.setObjectName(DOCK_NAME)
     dock.setWidget(ExplorerWidget(mode="insert", parent=dock))
     mw.addDockWidget(QtCore.Qt.RightDockWidgetArea, dock)

@@ -13,6 +13,7 @@ import FreeCADGui as Gui
 
 from . import icon, __version__
 from . import commands
+from .i18n import tr
 
 PARAMS = "User parameter:BaseApp/Preferences/Mod/AssemblyCompanion"
 
@@ -29,7 +30,7 @@ class AssemblyCompanionWorkbench(Gui.Workbench):
     """Workbench with two toolbars: durable assemblies and parts library."""
 
     MenuText = "Assembly Companion"
-    ToolTip = ("Workshop-grade tools for FreeCAD's built-in Assembly: durable "
+    ToolTip = tr("Workshop-grade tools for FreeCAD's built-in Assembly: durable "
                "assemblies, visual parts library, selection sets.")
     Icon = icon("AssemblyCompanion.svg")
 

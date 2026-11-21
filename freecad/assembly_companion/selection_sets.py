@@ -6,19 +6,19 @@
 #  assemblies (STEP files exploded into hundreds of parts, old assemblies,
 #  hidden parts, repeated selections while modelling).
 #
-#  - Sets are stored INSIDE the document ("Jeux de sélection" group), so they
+#  - Sets are stored INSIDE the document ("Selection sets" group), so they
 #    are saved with the .FCStd file. Parts are never moved.
 #  - Each member is stored by its full path (root + subpath), which tells
 #    apart the different instances of the same part (App::Link).
 #  - Works with FreeCAD 0.21, 1.0, 1.1 and 26.x (PySide2 or PySide6).
 #
-#  User-facing texts are in French; code comments are in English.
+#  User-facing texts are in English, translated through i18n.tr().
 # ---------------------------------------------------------------------------
 
-__Title__ = "Jeux de sélection"
+__Title__ = "Selection sets"
 __Author__ = "Claude"
 __Version__ = "1.0"
-__Comment__ = "Gestionnaire de jeux de sélection nommés pour gros assemblages"
+__Comment__ = "Manager of named selection sets for large assemblies"
 
 import re
 
@@ -35,6 +35,8 @@ try:
     import Part
 except ImportError:
     Part = None
+
+from .i18n import tr
 
 DOCK_NAME = "JeuxDeSelectionDock"
 GROUP_MARK = "SelectionSetsGroup"
@@ -277,10 +279,10 @@ def find_group(doc, create=False):
     if not create:
         return None
     g = doc.addObject("App::DocumentObjectGroup", "Jeux_de_selection")
-    g.addProperty("App::PropertyBool", GROUP_MARK, "Jeux de sélection",
-                  "Marqueur du groupe des jeux de sélection")
+    g.addProperty("App::PropertyBool", GROUP_MARK, "Selection sets",
+                  "Marker of the selection sets group")
     setattr(g, GROUP_MARK, True)
-    g.Label = "Jeux de sélection"
+    g.Label = tr("Selection sets")
     return g
 
 
@@ -303,8 +305,8 @@ def set_members(s, keys):
 def create_set(doc, label, keys):
     g = find_group(doc, create=True)
     s = doc.addObject("App::FeaturePython", "JeuSel")
-    s.addProperty("App::PropertyStringList", PROP, "Jeu de sélection",
-                  "Membres : NomRacine|sous.chemin.")
+    s.addProperty("App::PropertyStringList", PROP, "Selection set",
+                  "Members: RootName|sub.path.")
     s.Label = label
     set_members(s, keys)
     g.addObject(s)
@@ -352,19 +354,20 @@ def select_keys(doc, keys, clear=True):
 #  "Create by filter" dialog
 # --------------------------------------------------------------------------
 class FilterDialog(QtWidgets.QDialog):
-    TARGETS = ["Nouveau jeu", "Ajouter au jeu courant",
-               "Sélectionner seulement"]
 
     def __init__(self, parent=None):
         super(FilterDialog, self).__init__(parent)
-        self.setWindowTitle("Filtrer les pièces")
+        # Built here, not at class level, so tr() runs after the language is known
+        self.TARGETS = [tr("New set"), tr("Add to current set"),
+                        tr("Select only")]
+        self.setWindowTitle(tr("Filter parts"))
         form = QtWidgets.QFormLayout(self)
 
         self.text = QtWidgets.QLineEdit()
-        self.text.setPlaceholderText("ex. vis, M6, roulement…  (vide = tout)")
-        self.regex = QtWidgets.QCheckBox("Expression régulière")
+        self.text.setPlaceholderText(tr("e.g. screw, M6, bearing…  (empty = all)"))
+        self.regex = QtWidgets.QCheckBox(tr("Regular expression"))
         self.parents = QtWidgets.QCheckBox(
-            "Chercher aussi dans les noms des sous-ensembles parents")
+            tr("Also search the names of parent sub-assemblies"))
         self.parents.setChecked(True)
 
         def spin(maxv, suffix):
@@ -379,19 +382,19 @@ class FilterDialog(QtWidgets.QDialog):
         self.smax = spin(1e7, " mm")
         self.vmin = spin(1e13, " mm³")
         self.vmax = spin(1e13, " mm³")
-        self.visible = QtWidgets.QCheckBox("Seulement les pièces visibles")
+        self.visible = QtWidgets.QCheckBox(tr("Visible parts only"))
         self.target = QtWidgets.QComboBox()
         self.target.addItems(self.TARGETS)
 
-        form.addRow("Nom contient :", self.text)
+        form.addRow(tr("Name contains:"), self.text)
         form.addRow("", self.regex)
         form.addRow("", self.parents)
-        form.addRow("Taille min (diag. boîte) :", self.smin)
-        form.addRow("Taille max (diag. boîte) :", self.smax)
-        form.addRow("Volume min :", self.vmin)
-        form.addRow("Volume max :", self.vmax)
+        form.addRow(tr("Min size (box diag.):"), self.smin)
+        form.addRow(tr("Max size (box diag.):"), self.smax)
+        form.addRow(tr("Min volume:"), self.vmin)
+        form.addRow(tr("Max volume:"), self.vmax)
         form.addRow("", self.visible)
-        form.addRow("Résultat :", self.target)
+        form.addRow(tr("Result:"), self.target)
 
         bb = QtWidgets.QDialogButtonBox(BTN_OK | BTN_CANCEL)
         bb.accepted.connect(self.accept)
@@ -479,37 +482,37 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         lay.setContentsMargins(4, 4, 4, 4)
 
         self.list = QtWidgets.QListWidget()
-        self.list.setToolTip("Double-clic : sélectionner le jeu")
+        self.list.setToolTip(tr("Double-click: select the set"))
         self.list.itemDoubleClicked.connect(lambda *_: self.select_set())
         lay.addWidget(self.list, 1)
 
-        g1 = QtWidgets.QGroupBox("Composer")
+        g1 = QtWidgets.QGroupBox(tr("Compose"))
         l1 = QtWidgets.QGridLayout(g1)
-        l1.addWidget(self._btn("Nouveau", "Créer un jeu à partir de la sélection courante", self.new_set), 0, 0)
-        l1.addWidget(self._btn("+ Ajouter", "Ajouter la sélection courante au jeu", self.add_to_set), 0, 1)
-        l1.addWidget(self._btn("− Retirer", "Retirer la sélection courante du jeu", self.remove_from_set), 0, 2)
-        l1.addWidget(self._btn("Remplacer", "Remplacer le contenu du jeu par la sélection courante", self.replace_set), 1, 0)
-        l1.addWidget(self._btn("Filtre…", "Créer / compléter un jeu par nom, taille, volume", self.filter_set), 1, 1)
-        l1.addWidget(self._btn("Nettoyer", "Supprimer du jeu les pièces qui n'existent plus", self.clean_set), 1, 2)
-        l1.addWidget(self._btn("Renommer", "Renommer le jeu", self.rename_set), 2, 0)
-        l1.addWidget(self._btn("Dupliquer", "Copier le jeu", self.duplicate_set), 2, 1)
-        l1.addWidget(self._btn("Supprimer", "Supprimer le jeu (pas les pièces)", self.delete_set), 2, 2)
+        l1.addWidget(self._btn(tr("New"), tr("Create a set from the current selection"), self.new_set), 0, 0)
+        l1.addWidget(self._btn(tr("+ Add"), tr("Add the current selection to the set"), self.add_to_set), 0, 1)
+        l1.addWidget(self._btn(tr("− Remove"), tr("Remove the current selection from the set"), self.remove_from_set), 0, 2)
+        l1.addWidget(self._btn(tr("Replace"), tr("Replace the content of the set with the current selection"), self.replace_set), 1, 0)
+        l1.addWidget(self._btn(tr("Filter…"), tr("Create / extend a set by name, size, volume"), self.filter_set), 1, 1)
+        l1.addWidget(self._btn(tr("Clean"), tr("Remove parts that no longer exist from the set"), self.clean_set), 1, 2)
+        l1.addWidget(self._btn(tr("Rename"), tr("Rename the set"), self.rename_set), 2, 0)
+        l1.addWidget(self._btn(tr("Duplicate"), tr("Copy the set"), self.duplicate_set), 2, 1)
+        l1.addWidget(self._btn(tr("Delete"), tr("Delete the set (not the parts)"), self.delete_set), 2, 2)
         lay.addWidget(g1)
 
-        g2 = QtWidgets.QGroupBox("Utiliser")
+        g2 = QtWidgets.QGroupBox(tr("Use"))
         l2 = QtWidgets.QGridLayout(g2)
-        l2.addWidget(self._btn("Sélectionner", "Remplacer la sélection par le jeu", self.select_set), 0, 0)
-        l2.addWidget(self._btn("Sélect. +", "Ajouter le jeu à la sélection courante", lambda: self.select_set(clear=False)), 0, 1)
-        l2.addWidget(self._btn("Zoom", "Sélectionner le jeu et cadrer la vue dessus", self.zoom_set), 0, 2)
-        l2.addWidget(self._btn("Afficher", "Rendre visibles les pièces du jeu", self.show_set), 1, 0)
-        l2.addWidget(self._btn("Masquer", "Masquer les pièces du jeu", self.hide_set), 1, 1)
-        l2.addWidget(self._btn("Isoler", "N'afficher que le jeu", self.isolate_set), 1, 2)
-        l2.addWidget(self._btn("Isoler transp.", "Rendre tout le reste transparent et non sélectionnable", self.isolate_transparent), 2, 0)
-        l2.addWidget(self._btn("Tout afficher", "Rendre toutes les pièces visibles", self.show_all), 2, 1)
-        l2.addWidget(self._btn("Rétablir aspect", "Annuler les transparences / non-sélectionnables", self.restore_view), 2, 2)
+        l2.addWidget(self._btn(tr("Select"), tr("Replace the selection with the set"), self.select_set), 0, 0)
+        l2.addWidget(self._btn(tr("Select +"), tr("Add the set to the current selection"), lambda: self.select_set(clear=False)), 0, 1)
+        l2.addWidget(self._btn(tr("Zoom"), tr("Select the set and fit the view to it"), self.zoom_set), 0, 2)
+        l2.addWidget(self._btn(tr("Show"), tr("Make the parts of the set visible"), self.show_set), 1, 0)
+        l2.addWidget(self._btn(tr("Hide"), tr("Hide the parts of the set"), self.hide_set), 1, 1)
+        l2.addWidget(self._btn(tr("Isolate"), tr("Show only the set"), self.isolate_set), 1, 2)
+        l2.addWidget(self._btn(tr("Isolate transp."), tr("Make everything else transparent and unselectable"), self.isolate_transparent), 2, 0)
+        l2.addWidget(self._btn(tr("Show all"), tr("Make all parts visible"), self.show_all), 2, 1)
+        l2.addWidget(self._btn(tr("Restore look"), tr("Undo transparency / unselectable state"), self.restore_view), 2, 2)
         lay.addWidget(g2)
 
-        g3 = QtWidgets.QGroupBox("Combiner")
+        g3 = QtWidgets.QGroupBox(tr("Combine"))
         l3 = QtWidgets.QGridLayout(g3)
         self.comboA = QtWidgets.QComboBox()
         self.comboB = QtWidgets.QComboBox()
@@ -517,9 +520,9 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         l3.addWidget(self.comboA, 0, 1, 1, 3)
         l3.addWidget(QtWidgets.QLabel("B"), 1, 0)
         l3.addWidget(self.comboB, 1, 1, 1, 3)
-        l3.addWidget(self._btn("A ∪ B", "Union : nouveau jeu avec les pièces de A et de B", lambda: self.boolean("union")), 2, 1)
-        l3.addWidget(self._btn("A ∩ B", "Intersection : pièces présentes dans A et dans B", lambda: self.boolean("inter")), 2, 2)
-        l3.addWidget(self._btn("A − B", "Différence : pièces de A qui ne sont pas dans B", lambda: self.boolean("diff")), 2, 3)
+        l3.addWidget(self._btn("A ∪ B", tr("Union: new set with the parts of A and B"), lambda: self.boolean("union")), 2, 1)
+        l3.addWidget(self._btn("A ∩ B", tr("Intersection: parts present in both A and B"), lambda: self.boolean("inter")), 2, 2)
+        l3.addWidget(self._btn("A − B", tr("Difference: parts of A that are not in B"), lambda: self.boolean("diff")), 2, 3)
         lay.addWidget(g3)
 
         self.status = QtWidgets.QLabel("")
@@ -538,14 +541,14 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         item = self.list.currentItem()
         if doc is None or item is None:
             if not quiet:
-                self.msg("Choisis d'abord un jeu dans la liste.")
+                self.msg(tr("Pick a set in the list first."))
             return None
         return doc.getObject(item.data(USER_ROLE))
 
     def need_selection(self, doc):
         keys = selection_keys(doc)
         if not keys:
-            self.msg("Rien n'est sélectionné dans la vue 3D ou l'arbre.")
+            self.msg(tr("Nothing is selected in the 3D view or the tree."))
         return keys
 
     def _transaction(self, doc, name, fn):
@@ -556,7 +559,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             doc.commitTransaction()
 
     def _ask_name(self, title, default):
-        name, ok = QtWidgets.QInputDialog.getText(self, title, "Nom du jeu :", text=default)
+        name, ok = QtWidgets.QInputDialog.getText(self, title, tr("Set name:"), text=default)
         name = (name or "").strip()
         return name if ok and name else None
 
@@ -590,7 +593,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         self.comboB.clear()
         self._signature = self._compute_signature()
         if doc is None:
-            self.msg("Aucun document actif.")
+            self.msg(tr("No active document."))
             return
         for s in list_sets(doc):
             n = len(get_members(s))
@@ -616,13 +619,14 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         keys = self.need_selection(doc)
         if not keys:
             return
-        name = self._ask_name("Nouveau jeu", "Jeu %d" % (len(list_sets(doc)) + 1))
+        name = self._ask_name(tr("New set"),
+                              tr("Set {n}").format(n=len(list_sets(doc)) + 1))
         if not name:
             return
-        s = self._transaction(doc, "Nouveau jeu de sélection",
+        s = self._transaction(doc, tr("New selection set"),
                               lambda: create_set(doc, name, keys))
         self.refresh(s.Name)
-        self.msg("Jeu « %s » créé : %d élément(s)." % (name, len(keys)))
+        self.msg(tr("Set “{name}” created: {n} item(s).").format(name=name, n=len(keys)))
 
     def add_to_set(self):
         doc, s = self.doc(), self.current_set()
@@ -632,9 +636,10 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         if not keys:
             return
         before = get_members(s)
-        self._transaction(doc, "Ajouter au jeu", lambda: set_members(s, before + keys))
+        self._transaction(doc, tr("Add to set"), lambda: set_members(s, before + keys))
         self.refresh()
-        self.msg("%d élément(s) ajouté(s) à « %s »." % (len(get_members(s)) - len(before), s.Label))
+        self.msg(tr("{n} item(s) added to “{name}”.").format(
+            n=len(get_members(s)) - len(before), name=s.Label))
 
     def remove_from_set(self):
         doc, s = self.doc(), self.current_set()
@@ -653,12 +658,14 @@ class SelectionSetsPanel(QtWidgets.QWidget):
                 rm = set(expand(doc, keys))
                 new = [k for k in expand(doc, members) if k not in rm]
         removed = len(members) - len(new)
-        self._transaction(doc, "Retirer du jeu", lambda: set_members(s, new))
+        self._transaction(doc, tr("Remove from set"), lambda: set_members(s, new))
         self.refresh()
         if removed > 0:
-            self.msg("Retiré de « %s ». Le jeu compte maintenant %d élément(s)." % (s.Label, len(new)))
+            self.msg(tr("Removed from “{name}”. The set now has {n} item(s).").format(
+                name=s.Label, n=len(new)))
         else:
-            self.msg("Jeu « %s » détaillé en pièces ; %d élément(s)." % (s.Label, len(new)))
+            self.msg(tr("Set “{name}” expanded into parts; {n} item(s).").format(
+                name=s.Label, n=len(new)))
 
     def replace_set(self):
         doc, s = self.doc(), self.current_set()
@@ -667,9 +674,9 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         keys = self.need_selection(doc)
         if not keys:
             return
-        self._transaction(doc, "Remplacer le jeu", lambda: set_members(s, keys))
+        self._transaction(doc, tr("Replace set"), lambda: set_members(s, keys))
         self.refresh()
-        self.msg("« %s » remplacé : %d élément(s)." % (s.Label, len(keys)))
+        self.msg(tr("“{name}” replaced: {n} item(s).").format(name=s.Label, n=len(keys)))
 
     def filter_set(self):
         doc = self.doc()
@@ -682,32 +689,32 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             with _Busy():
                 keys = dlg.run_filter(doc)
         except re.error as e:
-            self.msg("Expression régulière invalide : %s" % e)
+            self.msg(tr("Invalid regular expression: {error}").format(error=e))
             return
         if not keys:
-            self.msg("Aucune pièce ne correspond au filtre.")
+            self.msg(tr("No part matches the filter."))
             return
         target = dlg.target.currentIndex()
         if target == 2:
             with _Busy():
                 select_keys(doc, keys)
-            self.msg("%d pièce(s) sélectionnée(s)." % len(keys))
+            self.msg(tr("{n} part(s) selected.").format(n=len(keys)))
         elif target == 1:
             s = self.current_set()
             if s is None:
                 return
             before = get_members(s)
-            self._transaction(doc, "Ajouter par filtre", lambda: set_members(s, before + keys))
+            self._transaction(doc, tr("Add by filter"), lambda: set_members(s, before + keys))
             self.refresh()
-            self.msg("%d pièce(s) trouvée(s), ajoutée(s) à « %s »." % (len(keys), s.Label))
+            self.msg(tr("{n} part(s) found, added to “{name}”.").format(n=len(keys), name=s.Label))
         else:
-            default = dlg.text.text().strip() or "Filtre"
-            name = self._ask_name("Nouveau jeu", default)
+            default = dlg.text.text().strip() or tr("Filter")
+            name = self._ask_name(tr("New set"), default)
             if not name:
                 return
-            s = self._transaction(doc, "Jeu par filtre", lambda: create_set(doc, name, keys))
+            s = self._transaction(doc, tr("Set by filter"), lambda: create_set(doc, name, keys))
             self.refresh(s.Name)
-            self.msg("Jeu « %s » créé : %d pièce(s)." % (name, len(keys)))
+            self.msg(tr("Set “{name}” created: {n} part(s).").format(name=name, n=len(keys)))
 
     def clean_set(self):
         doc, s = self.doc(), self.current_set()
@@ -715,20 +722,20 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             return
         members = get_members(s)
         new = [k for k in members if path_objects(doc, k) is not None]
-        self._transaction(doc, "Nettoyer le jeu", lambda: set_members(s, new))
+        self._transaction(doc, tr("Clean set"), lambda: set_members(s, new))
         self.refresh()
-        self.msg("%d élément(s) introuvable(s) retiré(s)." % (len(members) - len(new)))
+        self.msg(tr("{n} missing item(s) removed.").format(n=len(members) - len(new)))
 
     def rename_set(self):
         doc, s = self.doc(), self.current_set()
         if s is None:
             return
-        name = self._ask_name("Renommer", s.Label)
+        name = self._ask_name(tr("Rename"), s.Label)
         if not name:
             return
         def _do():
             s.Label = name
-        self._transaction(doc, "Renommer le jeu", _do)
+        self._transaction(doc, tr("Rename set"), _do)
         self.refresh()
 
     def duplicate_set(self):
@@ -736,8 +743,8 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         if s is None:
             return
         members = get_members(s)
-        n = self._transaction(doc, "Dupliquer le jeu",
-                              lambda: create_set(doc, s.Label + " (copie)", members))
+        n = self._transaction(doc, tr("Duplicate set"),
+                              lambda: create_set(doc, s.Label + tr(" (copy)"), members))
         self.refresh(n.Name)
 
     def delete_set(self):
@@ -745,14 +752,15 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         if s is None:
             return
         r = QtWidgets.QMessageBox.question(
-            self, "Supprimer", "Supprimer le jeu « %s » ?\n(les pièces ne sont pas touchées)" % s.Label,
+            self, tr("Delete"),
+            tr("Delete the set “{name}”?\n(the parts are not affected)").format(name=s.Label),
             MB_YES | MB_NO)
         if r != MB_YES:
             return
         label = s.Label
-        self._transaction(doc, "Supprimer le jeu", lambda: doc.removeObject(s.Name))
+        self._transaction(doc, tr("Delete set"), lambda: doc.removeObject(s.Name))
         self.refresh()
-        self.msg("Jeu « %s » supprimé." % label)
+        self.msg(tr("Set “{name}” deleted.").format(name=label))
 
     # ---------- use ----------
     def select_set(self, clear=True):
@@ -762,9 +770,9 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         keys = get_members(s)
         with _Busy():
             missing = select_keys(doc, keys, clear=clear)
-        txt = "« %s » : %d élément(s) sélectionné(s)." % (s.Label, len(keys) - missing)
+        txt = tr("“{name}”: {n} item(s) selected.").format(name=s.Label, n=len(keys) - missing)
         if missing:
-            txt += " %d introuvable(s) (bouton Nettoyer)." % missing
+            txt += " " + tr("{n} missing (Clean button).").format(n=missing)
         self.msg(txt)
         return True
 
@@ -786,7 +794,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         leaves = self._set_leaves(doc, s)
         for k in leaves:
             show_path(doc, k)
-        self.msg("« %s » affiché (%d pièce(s))." % (s.Label, len(leaves)))
+        self.msg(tr("“{name}” shown ({n} part(s)).").format(name=s.Label, n=len(leaves)))
 
     def hide_set(self):
         doc, s = self.doc(), self.current_set()
@@ -797,7 +805,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             o = leaf_of(doc, k)
             if o is not None:
                 o.Visibility = False
-        self.msg("« %s » masqué (%d pièce(s))." % (s.Label, len(leaves)))
+        self.msg(tr("“{name}” hidden ({n} part(s)).").format(name=s.Label, n=len(leaves)))
 
     def isolate_set(self):
         doc, s = self.doc(), self.current_set()
@@ -819,7 +827,8 @@ class SelectionSetsPanel(QtWidgets.QWidget):
                     o.Visibility = False
             for k in wanted:
                 show_path(doc, k)
-        self.msg("« %s » isolé (%d pièce(s)). « Tout afficher » pour revenir." % (s.Label, len(wanted)))
+        self.msg(tr("“{name}” isolated ({n} part(s)). “Show all” to go back.").format(
+            name=s.Label, n=len(wanted)))
 
     def _remember_view(self, doc, o):
         vo = getattr(o, "ViewObject", None)
@@ -865,8 +874,8 @@ class SelectionSetsPanel(QtWidgets.QWidget):
                     pass
             for k in wanted:
                 show_path(doc, k)
-        self.msg("« %s » mis en avant ; le reste est transparent et non sélectionnable. "
-                 "« Rétablir aspect » pour revenir." % s.Label)
+        self.msg(tr("“{name}” highlighted; the rest is transparent and unselectable. "
+                    "“Restore look” to go back.").format(name=s.Label))
 
     def restore_view(self):
         doc = self.doc()
@@ -888,7 +897,7 @@ class SelectionSetsPanel(QtWidgets.QWidget):
                 except Exception:
                     pass
             del self._saved_view[(dname, oname)]
-        self.msg("Aspect rétabli sur %d pièce(s)." % n)
+        self.msg(tr("Look restored on {n} part(s).").format(n=n))
 
     def show_all(self):
         doc = self.doc()
@@ -898,13 +907,13 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             leaves = all_leaves(doc)
             for k in leaves:
                 show_path(doc, k)
-        self.msg("Toutes les pièces sont visibles (%d)." % len(leaves))
+        self.msg(tr("All parts are visible ({n}).").format(n=len(leaves)))
 
     # ---------- combine ----------
     def boolean(self, op):
         doc = self.doc()
         if doc is None or self.comboA.count() == 0:
-            self.msg("Il faut au moins un jeu.")
+            self.msg(tr("At least one set is needed."))
             return
         a = doc.getObject(self.comboA.currentData())
         b = doc.getObject(self.comboB.currentData())
@@ -920,12 +929,12 @@ class SelectionSetsPanel(QtWidgets.QWidget):
             res, sym = [k for k in ka if k in sb], "∩"
         else:
             res, sym = [k for k in ka if k not in sb], "−"
-        name = self._ask_name("Résultat", "%s %s %s" % (a.Label, sym, b.Label))
+        name = self._ask_name(tr("Result"), "%s %s %s" % (a.Label, sym, b.Label))
         if not name:
             return
-        s = self._transaction(doc, "Combiner des jeux", lambda: create_set(doc, name, res))
+        s = self._transaction(doc, tr("Combine sets"), lambda: create_set(doc, name, res))
         self.refresh(s.Name)
-        self.msg("Jeu « %s » créé : %d pièce(s)." % (name, len(res)))
+        self.msg(tr("Set “{name}” created: {n} part(s).").format(name=name, n=len(res)))
 
 
 # --------------------------------------------------------------------------
@@ -937,7 +946,7 @@ def show_panel():
         d.close()
         d.setParent(None)
         d.deleteLater()
-    dock = QtWidgets.QDockWidget("Jeux de sélection", mw)
+    dock = QtWidgets.QDockWidget(tr("Selection sets"), mw)
     dock.setObjectName(DOCK_NAME)
     panel = SelectionSetsPanel(dock)
     dock.setWidget(panel)

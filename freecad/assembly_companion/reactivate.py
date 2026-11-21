@@ -36,10 +36,12 @@ the assembly out until FreeCAD restarts. Typical causes:
 This module clears each of them, reports what it found in the report view,
 then enters the edit mode of the assembly the regular way.
 
-User-facing messages are in French; code comments are in English.
+User-facing texts are in English, translated through i18n.tr().
 """
 
 import FreeCAD as App
+
+from .i18n import tr
 
 ACTIVE_KEYS = ("assembly", "part")      # 26.x uses "assembly", 1.0 used "part"
 ASM_PARAMS = "User parameter:BaseApp/Preferences/Mod/Assembly"
@@ -50,7 +52,7 @@ def _is_assembly(o):
 
 
 def _log(msg):
-    App.Console.PrintMessage("Réactiver l'assemblage : %s\n" % msg)
+    App.Console.PrintMessage(tr("Reactivate assembly: {msg}").format(msg=msg) + "\n")
 
 
 # ----------------------------------------------------------------------
@@ -94,9 +96,9 @@ def _target_assembly(doc, view):
     if len(asms) == 1:
         return asms[0]
     if not asms:
-        raise RuntimeError("Le document « %s » ne contient aucun assemblage." % doc.Label)
-    raise RuntimeError("Le document contient %d assemblages : sélectionnez celui "
-                       "à réactiver, puis relancez la commande." % len(asms))
+        raise RuntimeError(tr("The document “{doc}” contains no assembly.").format(doc=doc.Label))
+    raise RuntimeError(tr("The document contains {n} assemblies: select the one to "
+                          "reactivate, then run the command again.").format(n=len(asms)))
 
 
 # ----------------------------------------------------------------------
@@ -110,14 +112,14 @@ def _ensure_3d_view(gdoc):
             and hasattr(view, "getViewer"):
         return view
     if not gdoc.mdiViewsOfType("Gui::View3DInventor"):
-        raise RuntimeError("Aucune vue 3D ouverte pour ce document "
-                           "(Affichage → Créer une vue 3D).")
+        raise RuntimeError(tr("No 3D view is open for this document "
+                              "(View → Create new view)."))
     Gui.activateView("Gui::View3DInventor", False)
     view = gdoc.ActiveView
     if view is None or not hasattr(view, "getViewer"):
-        raise RuntimeError("Impossible d'activer la vue 3D du document : "
-                           "cliquez dans la vue 3D puis relancez la commande.")
-    _log("la vue active n'était pas une vue 3D : vue 3D réactivée.")
+        raise RuntimeError(tr("Cannot activate the 3D view of the document: click in "
+                              "the 3D view, then run the command again."))
+    _log(tr("the active view was not a 3D view: 3D view activated again."))
     return view
 
 
@@ -127,10 +129,10 @@ def _close_task_dialog():
         return
     Gui.Control.closeDialog()
     if Gui.Control.activeDialog():
-        _log("un panneau de tâches ne se ferme pas : fermez-le à la main "
-             "(bouton Annuler / Fermer de l'onglet Tâches).")
+        _log(tr("a task panel does not close: close it by hand "
+                "(Cancel / Close button of the Tasks tab)."))
     else:
-        _log("panneau de tâches resté ouvert : fermé.")
+        _log(tr("task panel left open: closed."))
 
 
 def _reset_edit(gdoc, asm):
@@ -140,7 +142,7 @@ def _reset_edit(gdoc, asm):
     name = vp.Object.Label if getattr(vp, "Object", None) else "?"
     gdoc.resetEdit()
     if vp.Object is not asm:
-        _log("« %s » était encore en édition : édition quittée." % name)
+        _log(tr("“{name}” was still in edit mode: edit mode left.").format(name=name))
 
 
 def _clear_active_objects(view, asm):
@@ -155,7 +157,8 @@ def _clear_active_objects(view, asm):
         view.setActiveObject(key, None)
         if stale:
             label = getattr(o, "Label", "?")
-            _log("objet actif périmé « %s » (clé '%s') : effacé." % (label, key))
+            _log(tr("stale active object “{name}” (key '{key}'): cleared.").format(
+                name=label, key=key))
 
 
 def _assembly_commands_active(asm):
@@ -177,7 +180,7 @@ def reactivate(doc=None):
     import FreeCADGui as Gui
     doc = doc or App.ActiveDocument
     if doc is None:
-        raise RuntimeError("Aucun document actif.")
+        raise RuntimeError(tr("No active document."))
     gdoc = Gui.getDocument(doc.Name)
     view = _ensure_3d_view(gdoc)
     asm = _target_assembly(doc, view)
@@ -197,16 +200,16 @@ def reactivate(doc=None):
     gdoc.setEdit(asm, 0)
 
     if _assembly_commands_active(asm):
-        _log("« %s » est de nouveau actif." % asm.Label)
+        _log(tr("“{name}” is active again.").format(name=asm.Label))
         return True
 
-    msg = ("« %s » n'a pas pu être réactivé. Enregistrez, fermez puis rouvrez le "
-           "document : cela recrée l'affichage de l'assemblage sans redémarrer "
-           "FreeCAD." % asm.Label)
-    App.Console.PrintWarning("Réactiver l'assemblage : %s\n" % msg)
+    msg = tr("“{name}” could not be reactivated. Save, close and reopen the document: "
+             "this rebuilds the display of the assembly without restarting "
+             "FreeCAD.").format(name=asm.Label)
+    App.Console.PrintWarning(tr("Reactivate assembly: {msg}").format(msg=msg) + "\n")
     try:
         from PySide import QtWidgets
     except ImportError:
         from PySide6 import QtWidgets
-    QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "Réactiver l'assemblage", msg)
+    QtWidgets.QMessageBox.warning(Gui.getMainWindow(), tr("Reactivate assembly"), msg)
     return False
