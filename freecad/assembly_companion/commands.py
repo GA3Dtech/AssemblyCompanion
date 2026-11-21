@@ -111,6 +111,10 @@ def _archive():
     _module("archive").archive()
 
 
+def _collisions():
+    _module("collisions").check()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -197,6 +201,10 @@ COMMANDS = {
         tr("Unlock an assembly that can no longer be activated (Assembly commands "
             "greyed out): close a stuck task panel, leave a pending edit, clear "
             "stale active objects, then activate the selected assembly.")),
+    "AssemblyCompanion_Collisions": _Command(
+        _collisions, "Collisions.svg", tr("Check collisions"),
+        tr("Find the parts of the assembly whose solids overlap (fasteners optionally "
+           "left out), list them and show the overlapping volumes in red.")),
     "AssemblyCompanion_Align": _Command(
         _align, "Align.svg", tr("Align elements"),
         tr("Place a body by clicking an element on it, then an element on another "
@@ -225,7 +233,8 @@ TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Dupli
                    "AssemblyCompanion_Replace",
                    "AssemblyCompanion_NewPart", "AssemblyCompanion_Fasteners",
                    "AssemblyCompanion_Explorer",
-                   "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets"]
+                   "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets",
+                   "AssemblyCompanion_Collisions"]
 MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]
         + TOOLBAR_LIBRARY)
 
