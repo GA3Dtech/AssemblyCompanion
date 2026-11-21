@@ -25,7 +25,7 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 ### Parts library and placement
 | Command | What it does |
 |---|---|
-| **Insert component (visual)** | Dock with thumbnails of every FreeCAD file under your parts folder; click to insert into the active assembly / Std_Part. Source files do not need to be open. Optional "freeze on insert". |
+| **Insert component (visual)** | Large floating window with thumbnails of every FreeCAD file under your parts folder; click to insert into the active assembly / Std_Part. Source files do not need to be open. Optional "freeze on insert". |
 | **Duplicate components** | Clones the selected components in the assembly tree: new instances of the same parts (frozen or not), at the same place, with the same colours, without joints. Source files are not touched. |
 | **New part from selection** | Creates a new part file named `PREFIX_001a_Description.FCStd` (working folder, free prefix, next free number proposed, revision, description) whose Body holds a SubShapeBinder of the selected faces, edges or parts — or of a selection set. By default the binder is an independent copy, so the new part can be inserted into the assembly, exactly in place, without making the files depend on each other; a linked binder that follows the assembly is also available. |
 | **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). |
