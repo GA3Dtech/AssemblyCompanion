@@ -274,11 +274,10 @@ def _version_fc():
     return '.'.join(App.Version()[:3])
 
 
-def _ouvrir_source(copie, doc_asm):
-    """Find and open the source document of a frozen copy. Tries the path
-    relative to the assembly first (project folder moved), then the absolute
-    path, then the same file name next to the assembly.
-    Returns (document, opened_by_us)."""
+def chemin_source(copie, doc_asm):
+    """Source file of a frozen copy, or None. Tries the path relative to the
+    assembly first (project folder moved), then the absolute path, then the
+    same file name next to the assembly."""
     candidats = []
     if doc_asm.FileName and copie.FigeFichierRelatif:
         candidats.append(os.path.normpath(os.path.join(
@@ -288,8 +287,16 @@ def _ouvrir_source(copie, doc_asm):
         candidats.append(os.path.join(os.path.dirname(doc_asm.FileName),
                                       os.path.basename(copie.FigeFichier)))
     for chemin in candidats:
-        if not chemin or not os.path.isfile(chemin):
-            continue
+        if chemin and os.path.isfile(chemin):
+            return chemin
+    return None
+
+
+def _ouvrir_source(copie, doc_asm):
+    """Find and open the source document of a frozen copy (see
+    chemin_source). Returns (document, opened_by_us)."""
+    chemin = chemin_source(copie, doc_asm)
+    if chemin is not None:
         for d in App.listDocuments().values():
             if d.FileName and os.path.samefile(d.FileName, chemin):
                 return d, False

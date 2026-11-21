@@ -95,6 +95,10 @@ def _new_part():
     _module("new_part").new_part_from_selection(App.ActiveDocument)
 
 
+def _outdated():
+    _module("outdated").show()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -137,6 +141,10 @@ COMMANDS = {
         _diagnostic, "Diagnostic.svg", tr("Check frozen assembly"),
         tr("Check in the report view that every joint reference resolves and that "
             "frozen copies carry no topological history.")),
+    "AssemblyCompanion_Outdated": _Command(
+        _outdated, "Outdated.svg", tr("Outdated frozen parts"),
+        tr("List the frozen parts whose source file was saved after they were frozen, "
+           "and refreeze the chosen ones from the saved source file.")),
     "AssemblyCompanion_Repair": _Command(
         _repair, "Repair.svg", tr("Repair frozen copies"),
         tr("Clean frozen copies made by early versions and rewrite their "
@@ -183,6 +191,7 @@ COMMANDS = {
 
 TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
+                   "AssemblyCompanion_Outdated",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
                    "AssemblyCompanion_NewPart", "AssemblyCompanion_Fasteners",
