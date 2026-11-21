@@ -140,8 +140,8 @@ COMMANDS = {
     "AssemblyCompanion_Duplicate": _Command(
         _duplicate, "Duplicate.svg", tr("Duplicate components"),
         tr("Clone the selected components in the assembly: new instances of the "
-            "same parts (frozen or not), same place, optionally with their joints. "
-            "Source files are not touched.")),
+            "same parts (frozen or not), same place, without joints. Source files "
+            "are not touched.")),
     "AssemblyCompanion_NewPart": _Command(
         _new_part, "NewPart.svg", tr("New part from selection"),
         tr("Create a new part file (PREFIX_001a_Description) whose Body holds a "
