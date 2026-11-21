@@ -20,6 +20,10 @@ commands.register()
 from . import prefs
 
 try:
+    # The preference dialog looks for an icon named "preferences-<group>"
+    # (lower case, spaces as "_") in the icon search path
+    from . import ICON_DIR
+    Gui.addIconPath(ICON_DIR)
     prefs.register()
 except Exception as exc:
     App.Console.PrintWarning("Assembly Companion: preference page not added (%s)\n" % exc)

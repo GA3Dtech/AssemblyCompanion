@@ -26,9 +26,14 @@ index and a description. The dialog proposes the next free number of the
 prefix in the working folder.
 
 Binder modes:
-  * independent copy (default): the binder copies the selected geometry,
-    then is detached (BindMode "Detached", Support cleared). The new file
-    does not depend on the assembly, so it can be inserted into it;
+  * independent copy (default): the selected geometry is computed here, at
+    its global place in the assembly (Part.getShape from the top of the
+    selection path, Assembly placement included), cleaned through a BREP
+    round trip and given to a detached binder (BindMode "Detached", no
+    Support). It does not rely on the binder resolving the selection paths,
+    which fails for paths holding mapped element names (";#...", given by the
+    selection when the assembly is in edit mode). The new file does not
+    depend on the assembly, so it can be inserted into it;
   * linked: the binder follows the assembly (BindMode "Synchronized"). The
     two files then depend on each other as soon as the new part is inserted
     into that assembly (FreeCAD: "The graph must be a DAG"), so insertion is
@@ -110,6 +115,41 @@ def selection_keys(doc):
     return out
 
 
+def normalize_sub(sub):
+    """Selection subname without mapped element names: 'Link.Body.;#7:1;:G0;XTR.Face6'
+    -> 'Link.Body.Face6'. Mapped names come from the selection (assembly
+    edit mode) and do not resolve once the topology was rebuilt."""
+    from .freeze import decouper_sub
+    if not sub or ";" not in sub:
+        return sub or ""
+    objets, _mapped, elem = decouper_sub(sub)
+    if not elem and not sub.endswith("."):
+        return sub                      # mapped name alone: nothing better
+    return ".".join(objets) + "." + elem if objets else elem
+
+
+def copy_shape(keys):
+    """Compound of the selected shapes at their global place in the
+    assembly, without topological history. Returns (shape, n_failed)."""
+    import Part
+    from .freeze import forme_propre
+    shapes, failed = [], 0
+    for root, sub in keys:
+        try:
+            sh = Part.getShape(root, normalize_sub(sub), needSubElement=True)
+        except Exception:
+            sh = None
+        if sh is None or sh.isNull():
+            failed += 1
+            App.Console.PrintWarning(tr("New part: nothing to copy for {path}").format(
+                path=root.Label + "." + sub) + "\n")
+            continue
+        shapes.append(sh)
+    if not shapes:
+        return None, failed
+    return forme_propre(Part.makeCompound(shapes)), failed
+
+
 def _is_container(o):
     """Assembly / Std_Part / group: objects a support is re-rooted below."""
     if o.TypeId.startswith("App::Link") or o.isDerivedFrom("PartDesign::Body"):
@@ -147,7 +187,7 @@ def binder_supports(keys):
     """[(object, (subnames...)), ...] for SubShapeBinder.Support."""
     grouped = []
     for root, sub in keys:
-        obj, rest = reroot(root, sub)
+        obj, rest = reroot(root, normalize_sub(sub))
         for o, subs in grouped:
             if o is obj:
                 if rest not in subs:
@@ -158,18 +198,13 @@ def binder_supports(keys):
     return [(o, tuple(subs)) for o, subs in grouped]
 
 
-def depends_on(supports, obj):
-    """True when a support is `obj` itself (whole assembly selected)."""
-    return any(o is obj for o, _subs in supports)
-
-
 # ----------------------------------------------------------------------
 #  Creation
 # ----------------------------------------------------------------------
-def create_part(path, supports, label=None, detach=True):
-    """Create and save `path` holding a Body with a SubShapeBinder of the
-    supports, detached after the copy when `detach`. Returns
-    (document, body, binder)."""
+def create_part(path, supports=None, label=None, shape=None):
+    """Create and save `path` holding a Body with a SubShapeBinder: a
+    detached binder holding `shape` (independent copy), or a binder linked
+    to `supports`. Returns (document, body, binder)."""
     if os.path.exists(path):
         raise RuntimeError(tr("“{file}” already exists.").format(file=os.path.basename(path)))
     stem = os.path.splitext(os.path.basename(path))[0]
@@ -181,11 +216,13 @@ def create_part(path, supports, label=None, detach=True):
     body.Label = label or stem
     binder = body.newObject("PartDesign::SubShapeBinder", "Binder")
     binder.Label = tr("Context")
-    binder.Support = supports
+    if shape is not None:
+        # A detached binder without Support keeps the shape given to it
+        binder.BindMode = "Detached"
+        binder.Shape = shape
+    else:
+        binder.Support = supports
     doc.recompute()
-    if detach:
-        binder.BindMode = "Detached"     # keeps the shape, clears Support
-        doc.recompute()
     if App.GuiUp:
         try:
             binder.ViewObject.Transparency = 60
@@ -205,6 +242,10 @@ def insert_into_assembly(asm_doc, body):
         link = asm_doc.addObject("App::Link", body.Name)
         link.setLink(body)
         link.Label = body.Label
+        if container is not None:
+            # The binder geometry is global: cancel the placement of the
+            # assembly (and of its parents) so the part sits exactly in place
+            link.Placement = container.getGlobalPlacement().inverse()
         if container is not None:
             container.addObject(link)
         asm_doc.recompute()
@@ -388,8 +429,6 @@ def new_part_from_selection(doc=None, keys=None):
     if not keys:
         raise RuntimeError(tr("Select parts, faces, edges or vertices first (or pick a "
                               "selection set)."))
-    supports = binder_supports(keys)
-
     dlg = _dialog_class()(doc, len(keys), Gui.getMainWindow())
     run = getattr(dlg, "exec", None) or dlg.exec_
     if not run():
@@ -398,22 +437,23 @@ def new_part_from_selection(doc=None, keys=None):
     path = dlg.path()
     label = clean(dlg.description.text()) or None
 
-    asm = None
-    if dlg.insert.isChecked() and not dlg.linked():
-        from . import explorer
-        asm = explorer._target_container(doc)
-        if asm is not None and depends_on(supports, asm):
-            App.Console.PrintWarning(tr("New part: the whole assembly is selected, the "
-                                        "new part is not inserted (dependency cycle).")
-                                     + "\n")
-            asm = None
-
-    new_doc, body, binder = create_part(path, supports, label, detach=not dlg.linked())
-    _log(tr("{file} created ({n} support(s) bound).").format(
-        file=os.path.basename(path), n=len(supports)))
-    if asm is not None:
-        link, container = insert_into_assembly(doc, body)
-        _log(tr("inserted into “{target}”.").format(target=container.Label))
+    if dlg.linked():
+        supports = binder_supports(keys)
+        new_doc, body, binder = create_part(path, supports=supports, label=label)
+        _log(tr("{file} created, binder linked to {n} object(s).").format(
+            file=os.path.basename(path), n=len(supports)))
+    else:
+        shape, failed = copy_shape(keys)
+        if shape is None:
+            raise RuntimeError(tr("The selected elements could not be read: nothing "
+                                  "was created (see the report view)."))
+        new_doc, body, binder = create_part(path, label=label, shape=shape)
+        _log(tr("{file} created, {n} element(s) copied.").format(
+            file=os.path.basename(path), n=len(keys) - failed))
+        if dlg.insert.isChecked():
+            link, container = insert_into_assembly(doc, body)
+            _log(tr("inserted into “{target}”.").format(
+                target=container.Label if container is not None else doc.Label))
 
     # Leave the user in the new part, ready to model
     try:
