@@ -17,6 +17,16 @@ Version 1.3, testée sur FreeCAD 26.3rc2 (Windows).
 > | assembly_JeuxDeSelection | Selection sets | `selection_sets.py` |
 >
 > Les sections « Installation » et « Contenu » ci-dessous concernent les macros ; pour le workbench, voir le README principal.
+>
+> Commandes ajoutées depuis, sans équivalent macro :
+>
+> | Commande | Rôle | Module |
+> |---|---|---|
+> | Reactivate assembly | Débloque un assemblage qui ne se réactive plus (panneau de tâches bloqué, édition en cours, objet actif périmé) | `reactivate.py` |
+> | Duplicate components | Clone les composants sélectionnés dans l'arbre d'assemblage | `duplicate.py` |
+> | New part from selection | Nouveau fichier `PREFIXE_001a_Description.FCStd` avec un corps contenant un SubShapeBinder de la sélection (copie indépendante par défaut, ou liée à l'assemblage) | `new_part.py` |
+>
+> L'interface est en anglais dans le code et traduite (français, allemand, italien, espagnol) ; la langue et les réglages sont dans *Édition → Préférences → Assembly Companion*.
 
 ## Pourquoi ces outils
 

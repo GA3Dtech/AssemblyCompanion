@@ -27,11 +27,18 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 |---|---|
 | **Insert component (visual)** | Dock with thumbnails of every FreeCAD file under your parts folder; click to insert into the active assembly / Std_Part. Source files do not need to be open. Optional "freeze on insert". |
 | **Duplicate components** | Clones the selected components in the assembly tree: new instances of the same parts (frozen or not), at the same place, with the same colours, without joints. Source files are not touched. |
+| **New part from selection** | Creates a new part file named `PREFIX_001a_Description.FCStd` (working folder, free prefix, next free number proposed, revision, description) whose Body holds a SubShapeBinder of the selected faces, edges or parts — or of a selection set. By default the binder is an independent copy, so the new part can be inserted into the assembly, exactly in place, without making the files depend on each other; a linked binder that follows the assembly is also available. |
 | **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). |
 | **Align elements** | Place a body by clicking an element on it, then on another body; flip, offset, rotation, optional gizmo. Ideal for static assemblies in a Std_Part. |
-| **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference. Made for exploded STEP files and large assemblies. |
+| **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference, new part from the set. Opening the panel leaves the assembly edit mode so faces, edges and vertices can be picked. Made for exploded STEP files and large assemblies. |
 
-When the built-in **Assembly** workbench is active, the Companion tools are appended to its **Assembly** toolbar (can be disabled with the boolean parameter `Mod/AssemblyCompanion/ShowInAssemblyWorkbench`).
+When the built-in **Assembly** workbench is active, the Companion tools are available in a separate **Assembly Companion** toolbar that can be moved, docked anywhere or hidden like any other toolbar.
+
+## Preferences and languages
+
+*Edit → Preferences → Assembly Companion*: interface language, parts library folder, working folder and naming defaults for new parts, binder mode, toolbar in the Assembly workbench, freeze on insert, leaving the assembly edit mode for selection sets.
+
+The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
 
 ## Installation
 
@@ -43,7 +50,7 @@ Requires FreeCAD 1.0 or newer.
 
 ## Status
 
-Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26.3rc2. Panel texts are in French for now; internationalisation (English first) is planned. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
+Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26.3rc2. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
 
 ## Credits and license
 
