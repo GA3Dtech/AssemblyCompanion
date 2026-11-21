@@ -1,0 +1,215 @@
+# -*- coding: utf-8 -*-
+# SPDX-License-Identifier: LGPL-2.1-or-later
+# Assembly Companion - preferences
+# Copyright (C) 2026 GA3Dtech
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or (at
+# your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <https://www.gnu.org/licenses/>.
+"""
+prefs.py (Assembly Companion) - every setting of the workbench in one place
+(parameter group Mod/AssemblyCompanion), plus the "Assembly Companion" page
+of Edit > Preferences.
+
+Modules read settings through get() / put() with the keys defined in
+DEFAULTS, never with their own ParamGet calls, so the preference page always
+shows every setting. Existing keys (LocalMasterDir, FreezeOnInsert,
+ShowInAssemblyWorkbench) keep their names: they are already in users'
+user.cfg.
+"""
+
+import os
+
+import FreeCAD as App
+
+from .i18n import tr, LANGUAGES
+
+PARAM_PATH = "User parameter:BaseApp/Preferences/Mod/AssemblyCompanion"
+
+# key -> default value (its type selects the parameter accessor)
+DEFAULTS = {
+    "Language": "auto",
+    "LocalMasterDir": "",           # parts library root (explorer, insert)
+    "FreezeOnInsert": False,
+    "ShowInAssemblyWorkbench": True,
+    "LeaveAssemblyForSelectionSets": True,
+    "NewPartDir": "",               # working folder ("" = folder of the assembly)
+    "NewPartPrefix": "",
+    "NewPartDigits": 3,
+    "NewPartRevision": "a",
+    "NewPartInsert": True,          # insert the new part into the assembly
+    "NewPartSwitchWorkbench": True,  # switch to PartDesign after creation
+}
+
+
+def _grp():
+    return App.ParamGet(PARAM_PATH)
+
+
+def get(key):
+    default = DEFAULTS[key]
+    g = _grp()
+    try:
+        if isinstance(default, bool):
+            return g.GetBool(key, default)
+        if isinstance(default, int):
+            return g.GetInt(key, default)
+        return g.GetString(key, default)
+    except Exception:
+        return default
+
+
+def put(key, value):
+    default = DEFAULTS[key]
+    g = _grp()
+    if isinstance(default, bool):
+        g.SetBool(key, bool(value))
+    elif isinstance(default, int):
+        g.SetInt(key, int(value))
+    else:
+        g.SetString(key, value or "")
+
+
+# ----------------------------------------------------------------------
+#  Preference page (Edit > Preferences > Assembly Companion)
+# ----------------------------------------------------------------------
+def _qt():
+    try:
+        from PySide import QtWidgets
+    except ImportError:
+        from PySide6 import QtWidgets
+    return QtWidgets
+
+
+class _FolderField(object):
+    """Line edit + browse button for a folder."""
+
+    def __init__(self, parent, title):
+        QtWidgets = _qt()
+        self.widget = QtWidgets.QWidget(parent)
+        lay = QtWidgets.QHBoxLayout(self.widget)
+        lay.setContentsMargins(0, 0, 0, 0)
+        self.edit = QtWidgets.QLineEdit()
+        btn = QtWidgets.QPushButton(tr("Browse…"))
+        lay.addWidget(self.edit, 1)
+        lay.addWidget(btn)
+        self._title = title
+        btn.clicked.connect(self._browse)
+
+    def _browse(self):
+        QtWidgets = _qt()
+        d = QtWidgets.QFileDialog.getExistingDirectory(
+            self.widget, self._title, self.edit.text() or os.path.expanduser("~"))
+        if d:
+            self.edit.setText(d)
+
+
+class PreferencePage(object):
+    """FreeCAD Python preference page: `form` + loadSettings / saveSettings."""
+
+    def __init__(self, parent=None):
+        QtWidgets = _qt()
+        self.form = QtWidgets.QWidget()
+        self.form.setWindowTitle(tr("General"))
+        lay = QtWidgets.QVBoxLayout(self.form)
+
+        # --- interface
+        g = QtWidgets.QGroupBox(tr("Interface"))
+        f = QtWidgets.QFormLayout(g)
+        self.language = QtWidgets.QComboBox()
+        self.language.addItem(tr("Same as FreeCAD"), "auto")
+        for code, name in LANGUAGES:
+            self.language.addItem(name, code)
+        f.addRow(tr("Language:"), self.language)
+        self.show_in_asm = QtWidgets.QCheckBox(
+            tr("Show the Assembly Companion toolbar in the Assembly workbench"))
+        f.addRow(self.show_in_asm)
+        note = QtWidgets.QLabel(tr("Language and toolbar changes apply after restarting FreeCAD."))
+        note.setWordWrap(True)
+        note.setStyleSheet("color: gray;")
+        f.addRow(note)
+        lay.addWidget(g)
+
+        # --- folders
+        g = QtWidgets.QGroupBox(tr("Folders"))
+        f = QtWidgets.QFormLayout(g)
+        self.master_dir = _FolderField(self.form, tr("Parts library folder"))
+        self.master_dir.edit.setToolTip(
+            tr("Root folder holding all your part folders (visual insertion, local explorer)."))
+        f.addRow(tr("Parts library:"), self.master_dir.widget)
+        self.new_dir = _FolderField(self.form, tr("Working folder for new parts"))
+        self.new_dir.edit.setPlaceholderText(tr("Empty: folder of the assembly"))
+        f.addRow(tr("Working folder:"), self.new_dir.widget)
+        lay.addWidget(g)
+
+        # --- new part from selection
+        g = QtWidgets.QGroupBox(tr("New part from selection"))
+        f = QtWidgets.QFormLayout(g)
+        self.prefix = QtWidgets.QLineEdit()
+        self.prefix.setPlaceholderText(tr("e.g. AB"))
+        f.addRow(tr("Default prefix:"), self.prefix)
+        self.digits = QtWidgets.QSpinBox()
+        self.digits.setRange(1, 6)
+        f.addRow(tr("Digits of the number:"), self.digits)
+        self.revision = QtWidgets.QLineEdit()
+        f.addRow(tr("First revision:"), self.revision)
+        self.insert_new = QtWidgets.QCheckBox(tr("Insert the new part into the active assembly"))
+        f.addRow(self.insert_new)
+        self.switch_wb = QtWidgets.QCheckBox(tr("Switch to the Part Design workbench"))
+        f.addRow(self.switch_wb)
+        lay.addWidget(g)
+
+        # --- behaviour
+        g = QtWidgets.QGroupBox(tr("Behaviour"))
+        f = QtWidgets.QFormLayout(g)
+        self.freeze_insert = QtWidgets.QCheckBox(tr("Freeze parts on visual insertion"))
+        f.addRow(self.freeze_insert)
+        self.leave_asm = QtWidgets.QCheckBox(
+            tr("Leave the assembly edit mode when opening selection sets"))
+        self.leave_asm.setToolTip(
+            tr("In assembly edit mode a click selects whole parts and drags them; "
+               "outside of it faces, edges and vertices can be selected."))
+        f.addRow(self.leave_asm)
+        lay.addWidget(g)
+        lay.addStretch(1)
+
+    def loadSettings(self):
+        i = self.language.findData(get("Language"))
+        self.language.setCurrentIndex(i if i >= 0 else 0)
+        self.show_in_asm.setChecked(get("ShowInAssemblyWorkbench"))
+        self.master_dir.edit.setText(get("LocalMasterDir"))
+        self.new_dir.edit.setText(get("NewPartDir"))
+        self.prefix.setText(get("NewPartPrefix"))
+        self.digits.setValue(get("NewPartDigits"))
+        self.revision.setText(get("NewPartRevision"))
+        self.insert_new.setChecked(get("NewPartInsert"))
+        self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
+        self.freeze_insert.setChecked(get("FreezeOnInsert"))
+        self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
+
+    def saveSettings(self):
+        put("Language", self.language.currentData())
+        put("ShowInAssemblyWorkbench", self.show_in_asm.isChecked())
+        put("LocalMasterDir", self.master_dir.edit.text().strip())
+        put("NewPartDir", self.new_dir.edit.text().strip())
+        put("NewPartPrefix", self.prefix.text().strip())
+        put("NewPartDigits", self.digits.value())
+        put("NewPartRevision", self.revision.text().strip())
+        put("NewPartInsert", self.insert_new.isChecked())
+        put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
+        put("FreezeOnInsert", self.freeze_insert.isChecked())
+        put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
+
+
+def register():
+    import FreeCADGui as Gui
+    Gui.addPreferencePage(PreferencePage, "Assembly Companion")

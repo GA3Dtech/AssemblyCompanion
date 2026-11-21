@@ -18,6 +18,12 @@ PARAMS = "User parameter:BaseApp/Preferences/Mod/AssemblyCompanion"
 
 commands.register()
 
+try:
+    from . import prefs
+    prefs.register()
+except Exception as exc:
+    App.Console.PrintWarning("Assembly Companion: preference page not added (%s)\n" % exc)
+
 
 class AssemblyCompanionWorkbench(Gui.Workbench):
     """Workbench with two toolbars: durable assemblies and parts library."""
