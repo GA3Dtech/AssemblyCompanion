@@ -17,6 +17,10 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
 | `freecad/assembly_companion/selection_sets.py` | Named selection sets stored in the document |
+| `freecad/assembly_companion/i18n.py` | `tr()` and language selection |
+| `freecad/assembly_companion/prefs.py` | All settings (`get`/`put`) and the preference page |
+| `freecad/assembly_companion/translations/` | `<code>.json` tables English → language |
+| `tools/i18n.py` | Check / update the translation tables |
 | `freecad/assembly_companion/resources/icons/` | SVG icons |
 | `package.xml` | Addon Manager metadata (version, date, freecadmin) |
 
@@ -27,8 +31,8 @@ FreeCAD restart (or a module reload).
 ## Language rules (strict)
 
 - **Code comments and docstrings: English only.** Never add French comments.
-- **User-facing texts (dialogs, status, console messages): French for now**
-  (internationalisation is planned; do not translate existing strings unless asked).
+- **User-facing texts (dialogs, status, console messages): English in the code,
+  wrapped in `tr()`**, translated in `translations/<code>.json`.
 - Legacy identifiers in `freeze.py` are French (`figer`, `relier`, `copie`,
   `Fige*` properties…). Keep them: they are stored in users' documents
   (`FigeFichier`, `FigeObjet`, group `Solides_figes`…) and renaming breaks
@@ -55,9 +59,18 @@ FreeCAD restart (or a module reload).
 - Active assembly: FreeCAD 26.x stores it under the view's active-object key
   `"assembly"`, 1.0 under `"part"`. Always check both (see `ACTIVE_KEYS` in
   `reactivate.py`).
-- WorkbenchManipulator `{"append": cmd, "toolBar": name}` only works on a toolbar
-  that already exists in the target workbench (unknown names are silently
-  ignored): Companion commands are appended to the built-in "Assembly" toolbar.
+- Toolbar in the Assembly workbench: declared as a custom toolbar in
+  `BaseApp/Workbench/AssemblyWorkbench/Toolbar/AssemblyCompanion` (rewritten at
+  startup by `init_gui.sync_assembly_toolbar`), so it is a separate, movable
+  toolbar. Do not go back to a WorkbenchManipulator: its "append" only adds to
+  an existing toolbar and silently ignores unknown toolbar names.
+- Settings: always through `prefs.get()` / `prefs.put()` (keys in
+  `prefs.DEFAULTS`), and expose new ones on the preference page.
+- Translations: user-facing texts are English literals in `tr("...")`,
+  formatted after translation with named fields (`.format(name=...)`). After
+  changing texts run `python3 tools/i18n.py update`, then fill the new entries
+  of `translations/*.json` (fr, de, it, es); `python3 tools/i18n.py check`
+  must report nothing missing before a commit.
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

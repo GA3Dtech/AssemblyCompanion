@@ -15,12 +15,11 @@ from . import icon, __version__
 from . import commands
 from .i18n import tr
 
-PARAMS = "User parameter:BaseApp/Preferences/Mod/AssemblyCompanion"
-
 commands.register()
 
+from . import prefs
+
 try:
-    from . import prefs
     prefs.register()
 except Exception as exc:
     App.Console.PrintWarning("Assembly Companion: preference page not added (%s)\n" % exc)
@@ -53,37 +52,45 @@ Gui.addWorkbench(AssemblyCompanionWorkbench())
 
 
 # --------------------------------------------------------------------------
-#  Tools inside the built-in Assembly workbench (WorkbenchManipulator,
-#  FreeCAD 0.22 / 1.0+). Can be turned off with the boolean parameter
-#  ShowInAssemblyWorkbench.
+#  Toolbar inside the built-in Assembly workbench. Can be turned off with
+#  the preference ShowInAssemblyWorkbench.
 # --------------------------------------------------------------------------
 
-class _AssemblyWorkbenchManipulator:
-    """Extends the "Assembly" toolbar of the Assembly workbench with the
-    Companion commands when that workbench is active; leaves every other
-    workbench untouched.
+ASM_TOOLBARS = "User parameter:BaseApp/Workbench/AssemblyWorkbench/Toolbar"
+ASM_TOOLBAR_GROUP = "AssemblyCompanion"
+ASM_TOOLBAR_NAME = "Assembly Companion"
 
-    "append" only adds to a toolbar that ALREADY exists in the workbench
-    (FreeCAD silently ignores an unknown toolbar name), so the commands go to
-    the built-in "Assembly" toolbar (untranslated name), after a separator."""
 
-    TOOLBAR = "Assembly"
+def sync_assembly_toolbar():
+    """Declare the Companion commands as a custom toolbar of the Assembly
+    workbench (the mechanism of Tools > Customize > Toolbars): FreeCAD builds
+    it as a separate toolbar the user can move, dock anywhere or hide, and
+    remembers its position. A WorkbenchManipulator could only append the
+    commands to the existing "Assembly" toolbar, which cannot be split.
 
-    def modifyToolBars(self):
-        try:
-            if Gui.activeWorkbench().name() != "AssemblyWorkbench":
-                return []
-        except Exception:
-            return []
-        cmds = (["Separator"] + commands.TOOLBAR_DURABLE
-                + ["Separator"] + commands.TOOLBAR_LIBRARY)
-        return [{"append": c, "toolBar": self.TOOLBAR} for c in cmds]
+    Rewritten at every start so it follows the command list; the "Active"
+    flag set by the user in the Customize dialog is kept."""
+    grp = App.ParamGet(ASM_TOOLBARS)
+    active = True
+    if grp.HasGroup(ASM_TOOLBAR_GROUP):
+        active = grp.GetGroup(ASM_TOOLBAR_GROUP).GetBool("Active", True)
+        grp.RemGroup(ASM_TOOLBAR_GROUP)
+    if not prefs.get("ShowInAssemblyWorkbench"):
+        return
+    bar = grp.GetGroup(ASM_TOOLBAR_GROUP)
+    bar.SetString("Name", ASM_TOOLBAR_NAME)
+    bar.SetBool("Active", active)
+    cmds = commands.TOOLBAR_DURABLE + ["Separator"] + commands.TOOLBAR_LIBRARY
+    for i, cmd in enumerate(cmds):
+        if cmd == "Separator":
+            bar.SetString("Separator%d" % i, "")
+        else:
+            # Module FreeCAD imports if the command is not registered yet
+            bar.SetString(cmd, "freecad.assembly_companion.init_gui")
 
 
 try:
-    if App.ParamGet(PARAMS).GetBool("ShowInAssemblyWorkbench", True) and \
-            hasattr(Gui, "addWorkbenchManipulator"):
-        Gui.addWorkbenchManipulator(_AssemblyWorkbenchManipulator())
+    sync_assembly_toolbar()
 except Exception as exc:
     App.Console.PrintWarning("Assembly Companion: Assembly toolbar not added (%s)\n" % exc)
 
