@@ -275,6 +275,8 @@
   "Leave the assembly edit mode when opening selection sets": "Salir del modo de edición del ensamblaje al abrir los conjuntos de selección",
   "In assembly edit mode a click selects whole parts and drags them; outside of it faces, edges and vertices can be selected.": "En el modo de edición del ensamblaje, un clic selecciona piezas completas y las arrastra; fuera de él se pueden seleccionar caras, aristas y vértices.",
   "Selection sets keep faces, edges and vertices": "Los conjuntos de selección conservan caras, aristas y vértices",
+  "Above 0, the skins of lightweight components are drawn as boxes when the camera is farther than this many times their size (experimental, e.g. 40). 0: plain mesh skins. Applies to components made afterwards.": "Por encima de 0, las pieles de los componentes aligerados se dibujan como cajas cuando la cámara está más lejos que este número de veces su tamaño (experimental, p. ej. 40). 0: pieles de malla simples. Se aplica a los componentes creados después.",
+  "Lightweight: box beyond (× size):": "Aligerado: caja a partir de (× tamaño):",
   "Warn when a file used by linked parts of an open assembly is closed": "Avisar al cerrar un archivo usado por piezas enlazadas de un ensamblaje abierto",
   "Closing such a file makes its parts vanish from the assembly; the warning offers to freeze them.": "Cerrar un archivo así hace desaparecer sus piezas del ensamblaje; el aviso ofrece congelarlas.",
   "Ask": "Preguntar",

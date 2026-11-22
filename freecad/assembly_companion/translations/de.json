@@ -275,6 +275,8 @@
   "Leave the assembly edit mode when opening selection sets": "Beim Öffnen der Auswahlsätze den Bearbeitungsmodus der Baugruppe verlassen",
   "In assembly edit mode a click selects whole parts and drags them; outside of it faces, edges and vertices can be selected.": "Im Bearbeitungsmodus der Baugruppe wählt ein Klick ganze Teile aus und zieht sie; außerhalb davon können Flächen, Kanten und Knotenpunkte ausgewählt werden.",
   "Selection sets keep faces, edges and vertices": "Auswahlsätze behalten Flächen, Kanten und Punkte",
+  "Above 0, the skins of lightweight components are drawn as boxes when the camera is farther than this many times their size (experimental, e.g. 40). 0: plain mesh skins. Applies to components made afterwards.": "Über 0 werden die Häute leichter Komponenten als Quader gezeichnet, wenn die Kamera weiter entfernt ist als so viele Male ihre Größe (experimentell, z. B. 40). 0: einfache Netzhäute. Gilt für danach erstellte Komponenten.",
+  "Lightweight: box beyond (× size):": "Leicht: Quader ab (× Größe):",
   "Warn when a file used by linked parts of an open assembly is closed": "Warnen, wenn eine Datei geschlossen wird, die von verknüpften Teilen einer offenen Baugruppe verwendet wird",
   "Closing such a file makes its parts vanish from the assembly; the warning offers to freeze them.": "Wird eine solche Datei geschlossen, verschwinden ihre Teile aus der Baugruppe; die Warnung bietet an, sie einzufrieren.",
   "Ask": "Fragen",

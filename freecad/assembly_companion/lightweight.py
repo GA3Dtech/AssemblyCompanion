@@ -62,11 +62,15 @@ def is_lightweight(o):
     return o is not None and o.isDerivedFrom("App::Part") and "LWMap" in o.PropertiesList
 
 
+def _is_skin(o):
+    return o.isDerivedFrom("Mesh::Feature") or "LodFactor" in o.PropertiesList
+
+
 def _children(cont):
     """(skeleton, [skins]) of a lightweight container."""
     sk, skins = None, []
     for c in cont.Group:
-        if c.isDerivedFrom("Mesh::Feature"):
+        if _is_skin(c):
             skins.append(c)
         elif c.isDerivedFrom("Part::Feature"):
             sk = c
@@ -139,16 +143,32 @@ def _skin(shape, diag):
                                   AngularDeflection=ANGULAR, Relative=False)
 
 
-def _pieces(target, prefix=""):
+def _pieces(target, prefix="", depth=0):
     """[(subname, object)] of the solids shown by `target`, one per body, so
-    each skin keeps the colour of its body."""
+    each skin keeps the colour of its body. Walks Std_Parts, assemblies and
+    the Links inside them, so a whole sub-assembly can become one
+    lightweight component."""
+    if depth > 30:
+        return []
     if target.isDerivedFrom("App::Part"):
         out = []
-        for c in freeze._enfants_directs(target):
-            if c.isDerivedFrom("App::Origin"):
+        from .bom import _children, _skip
+        for c in _children(target):
+            if c.isDerivedFrom("App::Origin") or _skip(c):
                 continue
-            if c.isDerivedFrom("App::Part"):
-                out += _pieces(c, prefix + c.Name + ".")
+            if c.isDerivedFrom("App::Link"):
+                t = c.getLinkedObject(True)
+                if t is None:
+                    continue
+                if t.isDerivedFrom("App::Part"):
+                    out += _pieces(t, prefix + c.Name + ".", depth + 1)
+                else:
+                    out.append((prefix + c.Name + ".", t))
+            elif c.isDerivedFrom("App::Part"):
+                out += _pieces(c, prefix + c.Name + ".", depth + 1)
+            elif _is_skin(c):
+                # skin of a lightweight component nested in a sub-assembly
+                out.append((prefix + c.Name + ".", c))
             else:
                 try:
                     if c.isDerivedFrom("Part::Feature") and c.Shape.Solids:
@@ -160,11 +180,163 @@ def _pieces(target, prefix=""):
 
 
 def _color(o):
+    """Display colour of `o` as an App.Material, or None (no GUI)."""
+    vo = getattr(o, "ViewObject", None)
+    if vo is None:
+        return None
     try:
-        app = o.ViewObject.ShapeAppearance
+        if "Color" in vo.PropertiesList and _is_skin(o):       # LOD skin
+            c = vo.Color
+            return App.Material(DiffuseColor=(c[0], c[1], c[2]))
+        app = vo.ShapeAppearance
         return app[0] if app else None
     except Exception:
         return None
+
+
+# ----------------------------------------------------------------------
+#  Skin with level of detail (Coin3D SoLOD)
+# ----------------------------------------------------------------------
+class Skin(object):
+    """App proxy of a skin: a plain App::FeaturePython carrying the mesh in a
+    Mesh property (a Mesh::FeaturePython would bring the native mesh view
+    provider, which does not handle a custom display mode)."""
+
+    def __init__(self, obj):
+        obj.Proxy = self
+        obj.addProperty("Mesh::PropertyMeshKernel", "Mesh", "Lightweight", "Skin mesh")
+        obj.addProperty("App::PropertyFloat", "LodFactor", "Lightweight",
+                        "Beyond this many times its size from the camera, the skin is "
+                        "drawn as a box (0: always the mesh)")
+
+    def execute(self, obj):
+        pass
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+
+class ViewProviderSkin(object):
+    """Draws the mesh near the camera and its bounding box far from it
+    (SoLOD: chosen by Coin at each frame, nothing changes in the document
+    while navigating)."""
+
+    def __init__(self, vobj):
+        vobj.addProperty("App::PropertyColor", "Color", "Lightweight", "Skin colour")
+        vobj.Proxy = self
+
+    def attach(self, vobj):
+        from pivy import coin
+        self.Object = vobj.Object
+        self.root = coin.SoSeparator()
+        self.material = coin.SoMaterial()
+        self.material.diffuseColor = (0.8, 0.8, 0.8)
+        self.root.addChild(self.material)
+        self.lod = coin.SoLOD()
+        self.root.addChild(self.lod)
+        vobj.addDisplayMode(self.root, "LOD")
+        self._build(vobj.Object)
+        self._color(vobj)
+
+    def _build(self, obj):
+        from pivy import coin
+        self.lod.removeAllChildren()
+        mesh = obj.Mesh
+        if mesh.CountFacets == 0:
+            return
+        points, facets = mesh.Topology
+        near = coin.SoSeparator()
+        hints = coin.SoShapeHints()
+        hints.vertexOrdering = coin.SoShapeHints.COUNTERCLOCKWISE
+        hints.creaseAngle = 0.6
+        near.addChild(hints)
+        coords = coin.SoCoordinate3()
+        coords.point.setValues(0, len(points), [(p.x, p.y, p.z) for p in points])
+        near.addChild(coords)
+        faces = coin.SoIndexedFaceSet()
+        idx = []
+        for f in facets:
+            idx += [f[0], f[1], f[2], -1]
+        faces.coordIndex.setValues(0, len(idx), idx)
+        near.addChild(faces)
+        self.lod.addChild(near)
+        bb = mesh.BoundBox
+        factor = getattr(obj, "LodFactor", 0.0)
+        if factor > 0:
+            far = coin.SoSeparator()
+            tr_ = coin.SoTranslation()
+            tr_.translation = (bb.Center.x, bb.Center.y, bb.Center.z)
+            box = coin.SoCube()
+            box.width, box.height, box.depth = (max(bb.XLength, 1e-3),
+                                                max(bb.YLength, 1e-3),
+                                                max(bb.ZLength, 1e-3))
+            far.addChild(tr_)
+            far.addChild(box)
+            self.lod.addChild(far)
+            self.lod.center = (bb.Center.x, bb.Center.y, bb.Center.z)
+            self.lod.range.setValues(0, 1, [bb.DiagonalLength * factor])
+
+    def _color(self, vobj):
+        try:
+            c = vobj.Color
+            self.material.diffuseColor = (c[0], c[1], c[2])
+        except Exception:
+            pass
+
+    def updateData(self, obj, prop):
+        if prop in ("Mesh", "LodFactor") and hasattr(self, "lod"):
+            self._build(obj)
+
+    def onChanged(self, vobj, prop):
+        if prop == "Color" and hasattr(self, "material"):
+            self._color(vobj)
+
+    def getDisplayModes(self, vobj):
+        return ["LOD"]
+
+    def getDefaultDisplayMode(self):
+        return "LOD"
+
+    def setDisplayMode(self, mode):
+        return mode
+
+    def getIcon(self):
+        from . import icon
+        return icon("Lightweight.svg")
+
+    def dumps(self):
+        return None
+
+    def loads(self, state):
+        return None
+
+
+def _new_skin(doc, mesh):
+    """Skin object: LOD skin (App::FeaturePython + Python view provider) when
+    the preference LightweightLodFactor is above 0, else - or when that
+    fails - a plain Mesh::Feature."""
+    from . import prefs
+    if prefs.get("LightweightLodFactor") <= 0:
+        sn = doc.addObject("Mesh::Feature", "Skin")
+        sn.Mesh = mesh
+        return sn
+    try:
+        import Mesh            # registers Mesh::PropertyMeshKernel
+        sn = doc.addObject("App::FeaturePython", "Skin")
+        Skin(sn)
+        sn.LodFactor = float(prefs.get("LightweightLodFactor"))
+        sn.Mesh = mesh
+        if App.GuiUp:
+            ViewProviderSkin(sn.ViewObject)
+        return sn
+    except Exception as exc:
+        App.Console.PrintLog("Lightweight: LOD skin unavailable (%s)\n" % exc)
+        sn = doc.addObject("Mesh::Feature", "Skin")
+        sn.Mesh = mesh
+        return sn
 
 
 def make(doc, links):
@@ -230,17 +402,37 @@ def make(doc, links):
         sk.Shape = skeleton
         cont.addObject(sk)
         diag = max(full.BoundBox.DiagonalLength, 1.0)
-        skins = []
+        # One mesh per piece, then merged per colour: a sub-assembly of a
+        # thousand parts gives a handful of skins, not a thousand objects
+        by_color, names = {}, {}
         for sub, obj in _pieces(target):
-            shape = Part.getShape(first, sub, needSubElement=True, transform=False) \
-                if sub else full
-            if shape.isNull():
-                continue
-            sn = doc.addObject("Mesh::Feature", "Skin")
-            sn.Label = tr("Skin") + (" " + obj.Label if sub else "")
-            sn.Mesh = _skin(shape, diag)
+            if _is_skin(obj):
+                # Nested lightweight component: reuse its mesh, placed through
+                # the path (matrix in the Link's own coordinates)
+                mesh = obj.Mesh.copy()
+                mesh.transform(first.getSubObject(sub, retType=4, transform=False))
+            else:
+                shape = Part.getShape(first, sub, needSubElement=True, transform=False) \
+                    if sub else full
+                if shape.isNull():
+                    continue
+                mesh = _skin(shape, diag)
+            col = _color(obj)
+            key = tuple(round(c, 3) for c in col.DiffuseColor[:3]) if col is not None else None
+            if key in by_color:
+                by_color[key][0].addMesh(mesh)
+            else:
+                by_color[key] = [mesh, col]
+            label = obj.Label if _is_skin(obj) else (
+                (obj.FigeLabel or obj.Label) if freeze._est_fige(obj) else obj.Label)
+            names.setdefault(key, []).append(label)
+        skins = []
+        for key, (mesh, col) in by_color.items():
+            sn = _new_skin(doc, mesh)
+            lbl = names[key]
+            sn.Label = lbl[0] if len(lbl) == 1 else tr("Skin") + " (%d)" % len(lbl)
             cont.addObject(sn)
-            skins.append((sn, _color(obj)))
+            skins.append((sn, col))
         if App.GuiUp:
             try:
                 cont.ViewObject.Visibility = False      # shown through the Links
@@ -249,7 +441,11 @@ def make(doc, links):
                 sk.ViewObject.LineWidth = 2.0
                 sk.ViewObject.Transparency = 70
                 for sn, col in skins:
-                    if col is not None:
+                    if col is None:
+                        continue
+                    if "Color" in sn.ViewObject.PropertiesList:     # LOD skin
+                        sn.ViewObject.Color = tuple(col.DiffuseColor[:3])
+                    else:
                         sn.ViewObject.ShapeAppearance = [col]
             except Exception:
                 pass
