@@ -30,6 +30,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/prefs.py` | All settings (`get`/`put`) and the preference page |
 | `freecad/assembly_companion/translations/` | `<code>.json` tables English → language |
 | `tools/i18n.py` | Check / update the translation tables |
+| `tools/bench_large.py` | Benchmark of very large assemblies, BREP vs mesh (results in `docs/benchmark.md`) |
 | `freecad/assembly_companion/resources/icons/` | SVG icons |
 | `package.xml` | Addon Manager metadata (version, date, freecadmin) |
 
