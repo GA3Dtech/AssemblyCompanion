@@ -201,7 +201,7 @@ def binder_supports(keys):
 # ----------------------------------------------------------------------
 #  Creation
 # ----------------------------------------------------------------------
-def create_part(path, supports=None, label=None, shape=None):
+def create_part(path, supports=None, label=None, shape=None, source=None):
     """Create and save `path` holding a Body with a SubShapeBinder: a
     detached binder holding `shape` (independent copy), or a binder linked
     to `supports`. Returns (document, body, binder)."""
@@ -216,6 +216,10 @@ def create_part(path, supports=None, label=None, shape=None):
     body.Label = label or stem
     binder = body.newObject("PartDesign::SubShapeBinder", "Binder")
     binder.Label = tr("Context")
+    # Assembly the context comes from, to update the binder later
+    binder.addProperty("App::PropertyString", "ContextAssembly", "Assembly Companion",
+                       "File of the assembly the context geometry was taken from")
+    binder.ContextAssembly = source or ""
     if shape is not None:
         # A detached binder without Support keeps the shape given to it
         binder.BindMode = "Detached"
@@ -439,7 +443,8 @@ def new_part_from_selection(doc=None, keys=None):
 
     if dlg.linked():
         supports = binder_supports(keys)
-        new_doc, body, binder = create_part(path, supports=supports, label=label)
+        new_doc, body, binder = create_part(path, supports=supports, label=label,
+                                            source=doc.FileName)
         _log(tr("{file} created, binder linked to {n} object(s).").format(
             file=os.path.basename(path), n=len(supports)))
     else:
@@ -447,7 +452,8 @@ def new_part_from_selection(doc=None, keys=None):
         if shape is None:
             raise RuntimeError(tr("The selected elements could not be read: nothing "
                                   "was created (see the report view)."))
-        new_doc, body, binder = create_part(path, label=label, shape=shape)
+        new_doc, body, binder = create_part(path, label=label, shape=shape,
+                                            source=doc.FileName)
         _log(tr("{file} created, {n} element(s) copied.").format(
             file=os.path.basename(path), n=len(keys) - failed))
         if dlg.insert.isChecked():
@@ -466,3 +472,72 @@ def new_part_from_selection(doc=None, keys=None):
         except Exception:
             pass
     return new_doc
+
+
+# ----------------------------------------------------------------------
+#  Update the binder of a part from a new selection
+# ----------------------------------------------------------------------
+def context_binders(asm_doc):
+    """SubShapeBinders of the other open documents, the ones made from
+    `asm_doc` (property ContextAssembly) first."""
+    from . import docs
+    mine, others = [], []
+    for d in App.listDocuments().values():
+        if d is asm_doc:
+            continue
+        for o in d.Objects:
+            if o.TypeId != "PartDesign::SubShapeBinder":
+                continue
+            src = getattr(o, "ContextAssembly", "") if "ContextAssembly" in o.PropertiesList else ""
+            (mine if src and docs.same_file(src, asm_doc.FileName) else others).append(o)
+    return mine + others
+
+
+def update_binder(binder, keys):
+    """Replace the content of `binder` by the selected elements: a new copy
+    for a detached binder, new supports for a linked one."""
+    doc = binder.Document
+    doc.openTransaction(tr("Update binder"))
+    try:
+        if binder.BindMode == "Detached" or not binder.Support:
+            shape, failed = copy_shape(keys)
+            if shape is None:
+                raise RuntimeError(tr("The selected elements could not be read: nothing "
+                                      "was changed (see the report view)."))
+            binder.Shape = shape
+        else:
+            binder.Support = binder_supports(keys)
+        doc.recompute()
+    finally:
+        doc.commitTransaction()
+
+
+def update_binder_from_selection(doc=None):
+    """Select the new context in the assembly, then pick the binder to update
+    (a part made with "New part from selection", open in FreeCAD)."""
+    import FreeCADGui as Gui
+    from . import docs
+    QtWidgets, _QtCore = _qt()
+    doc = doc or docs.working_document()
+    if doc is None:
+        raise RuntimeError(tr("No active document."))
+    keys = selection_keys(doc)
+    if not keys:
+        raise RuntimeError(tr("Select in the assembly the faces, edges or parts the binder "
+                              "must hold, then run the command again."))
+    binders = context_binders(doc)
+    if not binders:
+        raise RuntimeError(tr("No SubShapeBinder in the other open documents: open the "
+                              "part to update first."))
+    labels = ["%s  —  %s" % (b.Document.Label, b.Label) for b in binders]
+    choice, ok = QtWidgets.QInputDialog.getItem(
+        Gui.getMainWindow(), tr("Update binder"),
+        tr("Binder to fill with the {n} selected element(s):").format(n=len(keys)),
+        labels, 0, False)
+    if not ok:
+        return None
+    binder = binders[labels.index(choice)]
+    update_binder(binder, keys)
+    _log(tr("“{binder}” of {file} updated with {n} element(s). Save that file to keep "
+            "it.").format(binder=binder.Label, file=binder.Document.Label, n=len(keys)))
+    return binder

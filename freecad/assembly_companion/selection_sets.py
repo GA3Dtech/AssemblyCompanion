@@ -381,6 +381,14 @@ def set_members(s, keys):
         pass
 
 
+def set_shape(doc, s):
+    """SubShapeBinder made from the set `s` ("Shape for TechDraw"), or None."""
+    for o in doc.Objects:
+        if "SetShapeOf" in o.PropertiesList and o.SetShapeOf == s.Name:
+            return o
+    return None
+
+
 def create_set(doc, label, keys):
     g = find_group(doc, create=True)
     s = doc.addObject("App::FeaturePython", "JeuSel")
@@ -614,7 +622,8 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         l4.addWidget(self._btn(tr("Shape for TechDraw"),
                                tr("SubShapeBinder of the set members only (chosen faces, "
                                   "edges, parts) at the root of the document: make the "
-                                  "TechDraw view of it to draw only what matters"),
+                                  "TechDraw view of it to draw only what matters. Run it "
+                                  "again after changing the set to update the same shape"),
                                self.techdraw_shape), 0, 1)
         lay.addWidget(g4)
 
@@ -1028,9 +1037,11 @@ class SelectionSetsPanel(QtWidgets.QWidget):
 
     # ---------- create ----------
     def techdraw_shape(self):
-        """SubShapeBinder of the members of the current set, at the root of the
-        document (outside any assembly: no dependency cycle). It follows the
-        parts and can be used as the source of a TechDraw view."""
+        """Create, or update, the SubShapeBinder of the members of the current
+        set, at the root of the document (outside any assembly: no dependency
+        cycle). The binder remembers its set (property SetShapeOf), so after
+        adding or removing members the same binder is updated and the
+        TechDraw views made from it follow."""
         doc, s = self.doc(), self.current_set()
         if s is None:
             return
@@ -1049,17 +1060,27 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         if not supports:
             self.msg(tr("The set is empty or its members no longer exist."))
             return
+        existing = set_shape(doc, s)
 
         def _do():
-            b = doc.addObject("PartDesign::SubShapeBinder", "SetShape")
+            b = existing
+            if b is None:
+                b = doc.addObject("PartDesign::SubShapeBinder", "SetShape")
+                b.addProperty("App::PropertyString", "SetShapeOf", "Selection set",
+                              "Internal name of the selection set this shape is made from")
+                b.SetShapeOf = s.Name
+                b.MakeFace = False      # keep chosen edges as edges
             b.Label = tr("{name} (shape)").format(name=s.Label)
-            b.MakeFace = False          # keep chosen edges as edges
             b.Support = [(o, tuple(subs)) for o, subs in supports]
             doc.recompute()
             return b
         b = self._transaction(doc, tr("Shape of the set"), _do)
-        self.msg(tr("“{name}” created: select it, then insert a TechDraw view.").format(
-            name=b.Label))
+        if existing is None:
+            self.msg(tr("“{name}” created: select it, then insert a TechDraw view.").format(
+                name=b.Label))
+        else:
+            self.msg(tr("“{name}” updated with the {n} member(s) of the set.").format(
+                name=b.Label, n=len(get_members(s))))
         try:
             Gui.Selection.clearSelection()
             Gui.Selection.addSelection(b)

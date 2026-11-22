@@ -115,6 +115,10 @@ def _collisions():
     _module("collisions").check()
 
 
+def _update_binder():
+    _module("new_part").update_binder_from_selection()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -196,6 +200,11 @@ COMMANDS = {
         tr("Create a new part file (PREFIX_001a_Description) whose Body holds a "
            "SubShapeBinder of the selected faces, edges or parts, to model it in "
            "the context of the assembly.")),
+    "AssemblyCompanion_UpdateBinder": _Command(
+        _update_binder, "UpdateBinder.svg", tr("Update part binder"),
+        tr("Replace the content of the SubShapeBinder of an open part (made with "
+           "\"New part from selection\") by the faces, edges or parts selected in the "
+           "assembly: to add or remove context elements.")),
     "AssemblyCompanion_Reactivate": _Command(
         _reactivate, "Reactivate.svg", tr("Reactivate assembly"),
         tr("Unlock an assembly that can no longer be activated (Assembly commands "
@@ -231,7 +240,8 @@ TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
                    "AssemblyCompanion_Replace",
-                   "AssemblyCompanion_NewPart", "AssemblyCompanion_Fasteners",
+                   "AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
+                   "AssemblyCompanion_Fasteners",
                    "AssemblyCompanion_Explorer",
                    "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets",
                    "AssemblyCompanion_Collisions"]
