@@ -28,7 +28,8 @@ used:
   * Link to a Body, a solid or a Std_Part of another file (still linked);
   * Body / solid stored in the assembly itself;
   * sub-assemblies, Std_Parts and groups, walked recursively;
-  * Link arrays (ElementCount) multiply the quantities.
+  * Link arrays (ElementCount) multiply the quantities;
+  * lightweight components count as the part they stand for.
 Rows are grouped by (name, source file) and counted: clones, screws of the
 Fasteners workbench (frozen or not) and repeated sub-assemblies add up.
 
@@ -43,7 +44,7 @@ import FreeCAD as App
 from . import freeze
 from .i18n import tr, language
 
-FROZEN, LINKED, LOCAL = "frozen", "linked", "local"
+FROZEN, LINKED, LOCAL, LIGHT = "frozen", "linked", "local", "lightweight"
 _SKIP_TYPES = ("App::Origin", "App::OriginFeature", "App::Line", "App::Plane",
                "App::Point", "App::LocalCoordinateSystem", "Assembly::JointGroup",
                "Assembly::ViewGroup", "Assembly::BomGroup", "Assembly::SimulationGroup")
@@ -91,7 +92,9 @@ def collect(roots, asm_doc):
     def target(t, qty, state, depth):
         if depth > 50:
             return
-        if freeze._est_conteneur_fige(t):
+        if "LWMap" in t.PropertiesList:         # lightweight component
+            add(t.LWLabel or t.Label, os.path.basename(t.LWFile or ""), LIGHT, qty)
+        elif freeze._est_conteneur_fige(t):
             for c in t.Group:
                 if freeze._est_fige(c):
                     target(c, qty, FROZEN, depth + 1)
@@ -135,7 +138,8 @@ def write_csv(path, rows):
     """Sorted rows; ';' separator for languages using a decimal comma (what
     their spreadsheets expect), ',' otherwise."""
     sep = ";" if language() in ("fr", "de", "it", "es") else ","
-    state_txt = {FROZEN: tr("frozen"), LINKED: tr("linked"), LOCAL: tr("in the assembly")}
+    state_txt = {FROZEN: tr("frozen"), LINKED: tr("linked"), LOCAL: tr("in the assembly"),
+                 LIGHT: tr("lightweight")}
     with open(path, "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh, delimiter=sep)
         w.writerow([tr("Quantity"), tr("Part"), tr("Source file"), tr("State")])

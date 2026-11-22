@@ -20,6 +20,7 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/replace.py` | Replace a component by another file / revision, joints kept |
 | `freecad/assembly_companion/archive.py` | Pack and go: assembly + needed files in a zip |
 | `freecad/assembly_companion/collisions.py` | Interference check between parts (Shape.common), red result object |
+| `freecad/assembly_companion/lightweight.py` | Lightweight components (skeleton BREP + mesh skins), restore, open source |
 | `freecad/assembly_companion/duplicate.py` | Duplicate components (clone Links in the assembly tree) |
 | `freecad/assembly_companion/reactivate.py` | Reactivate assembly (clears stale task panel / edit / active-object state) |
 | `freecad/assembly_companion/align.py` | Align elements (placement by clicking geometry) |
@@ -93,6 +94,10 @@ FreeCAD restart (or a module reload).
 - The FreeCAD MCP server (`mcp__freecad__execute_code`) can drive the user's open
   FreeCAD: test GUI behaviour there on COPIES of files (temporary folder), never
   on the user's open documents, and close the copies afterwards.
+- Lightweight components must not keep any live link (XLink, Link) to the heavy
+  original, or FreeCAD loads its BREP anyway: only text references (LWFile,
+  LWObject, LWMap in source names). Child names are unique per document
+  (Skeleton, Skeleton001…): never write them literally in subnames.
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

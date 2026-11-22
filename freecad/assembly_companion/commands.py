@@ -119,6 +119,18 @@ def _update_binder():
     _module("new_part").update_binder_from_selection()
 
 
+def _lightweight():
+    _module("lightweight").make_command()
+
+
+def _restore_full():
+    _module("lightweight").restore_command()
+
+
+def _open_source():
+    _module("lightweight").open_source_command()
+
+
 def _reactivate():
     _module("reactivate").reactivate(App.ActiveDocument)
 
@@ -175,6 +187,19 @@ COMMANDS = {
         tr("Put the assembly and every file it needs (linked parts, sub-assemblies, "
            "optionally the sources of frozen parts) into one zip, relative paths "
            "kept so it opens anywhere once extracted.")),
+    "AssemblyCompanion_Lightweight": _Command(
+        _lightweight, "Lightweight.svg", tr("Make lightweight"),
+        tr("For very large assemblies: replace the selected components (or all) by a "
+           "light mesh skin plus a skeleton of the elements their joints use. Joints "
+           "and solver keep working; the file no longer holds their BREP.")),
+    "AssemblyCompanion_RestoreFull": _Command(
+        _restore_full, "RestoreFull.svg", tr("Restore full components"),
+        tr("Put the selected lightweight components (or all) back to the real parts "
+           "of their source file, joints included; frozen ones are frozen again.")),
+    "AssemblyCompanion_OpenSource": _Command(
+        _open_source, "OpenSource.svg", tr("Open source file"),
+        tr("Open the real file of the selected component (lightweight, frozen or "
+           "linked) to work on it.")),
     "AssemblyCompanion_Repair": _Command(
         _repair, "Repair.svg", tr("Repair frozen copies"),
         tr("Clean frozen copies made by early versions and rewrite their "
@@ -236,7 +261,8 @@ COMMANDS = {
 TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
                    "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
                    "AssemblyCompanion_Outdated", "AssemblyCompanion_Bom",
-                   "AssemblyCompanion_Archive",
+                   "AssemblyCompanion_Archive", "AssemblyCompanion_Lightweight",
+                   "AssemblyCompanion_RestoreFull", "AssemblyCompanion_OpenSource",
                    "AssemblyCompanion_Reactivate"]
 TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
                    "AssemblyCompanion_Replace",
