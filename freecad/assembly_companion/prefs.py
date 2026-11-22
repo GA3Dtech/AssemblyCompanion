@@ -43,7 +43,7 @@ DEFAULTS = {
     "ShowInAssemblyWorkbench": True,
     "LeaveAssemblyForSelectionSets": True,
     "SelectionSetsElements": False,
-    "LightweightLodFactor": 0,      # >0: LOD skins drawn as boxes beyond n x their size  # selection sets store faces / edges / vertices
+    "LightweightLodPixels": 2000,   # LOD skins drawn as boxes below n pixels (0: plain mesh)  # selection sets store faces / edges / vertices
     "WarnOnSourceClose": True,
     "DuplicateJoints": "ask",       # duplicate: also copy joints (ask / always / never)      # close_guard: warn when a linked source is closed
     "NewPartDir": "",               # working folder ("" = folder of the assembly)
@@ -194,12 +194,13 @@ class PreferencePage(object):
             tr("Selection sets keep faces, edges and vertices"))
         f.addRow(self.sets_elements)
         self.lod = QtWidgets.QSpinBox()
-        self.lod.setRange(0, 1000)
+        self.lod.setRange(0, 1000000)
+        self.lod.setSingleStep(500)
         self.lod.setToolTip(tr("Above 0, the skins of lightweight components are drawn as "
-                               "boxes when the camera is farther than this many times their "
-                               "size (experimental, e.g. 40). 0: plain mesh skins. Applies to "
+                               "boxes when they cover less than this screen area, in pixels "
+                               "(2000: about 45 × 45). 0: plain mesh skins. Applies to "
                                "components made afterwards."))
-        f.addRow(tr("Lightweight: box beyond (× size):"), self.lod)
+        f.addRow(tr("Lightweight: box below (pixels):"), self.lod)
         self.warn_close = QtWidgets.QCheckBox(
             tr("Warn when a file used by linked parts of an open assembly is closed"))
         self.warn_close.setToolTip(
@@ -230,7 +231,7 @@ class PreferencePage(object):
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
         self.sets_elements.setChecked(get("SelectionSetsElements"))
-        self.lod.setValue(get("LightweightLodFactor"))
+        self.lod.setValue(get("LightweightLodPixels"))
         self.warn_close.setChecked(get("WarnOnSourceClose"))
         i = self.dup_joints.findData(get("DuplicateJoints"))
         self.dup_joints.setCurrentIndex(i if i >= 0 else 0)
@@ -249,7 +250,7 @@ class PreferencePage(object):
         put("FreezeOnInsert", self.freeze_insert.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
         put("SelectionSetsElements", self.sets_elements.isChecked())
-        put("LightweightLodFactor", self.lod.value())
+        put("LightweightLodPixels", self.lod.value())
         put("WarnOnSourceClose", self.warn_close.isChecked())
         put("DuplicateJoints", self.dup_joints.currentData())
 

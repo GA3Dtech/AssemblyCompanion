@@ -98,6 +98,13 @@ FreeCAD restart (or a module reload).
   original, or FreeCAD loads its BREP anyway: only text references (LWFile,
   LWObject, LWMap in source names). Child names are unique per document
   (Skeleton, Skeleton001…): never write them literally in subnames.
+- Level of detail: use `SoLevelOfDetail` (projected screen area), not `SoLOD`
+  (camera distance): FreeCAD's default camera is orthographic, zooming does not
+  change the distance. LOD skins are `App::FeaturePython` + `Mesh::PropertyMeshKernel`
+  with a Python view provider; a `Mesh::FeaturePython` brings the native mesh view
+  provider, which does not handle a custom display mode.
+- MCP screenshots refit the view: to check what a zoom level shows, use
+  `ActiveView.saveImage(path, w, h, "Current")` and read the image.
 - Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 

@@ -63,7 +63,7 @@ def is_lightweight(o):
 
 
 def _is_skin(o):
-    return o.isDerivedFrom("Mesh::Feature") or "LodFactor" in o.PropertiesList
+    return o.isDerivedFrom("Mesh::Feature") or "LodPixels" in o.PropertiesList
 
 
 def _children(cont):
@@ -205,9 +205,9 @@ class Skin(object):
     def __init__(self, obj):
         obj.Proxy = self
         obj.addProperty("Mesh::PropertyMeshKernel", "Mesh", "Lightweight", "Skin mesh")
-        obj.addProperty("App::PropertyFloat", "LodFactor", "Lightweight",
-                        "Beyond this many times its size from the camera, the skin is "
-                        "drawn as a box (0: always the mesh)")
+        obj.addProperty("App::PropertyFloat", "LodPixels", "Lightweight",
+                        "Below this screen area (pixels) the skin is drawn as a box "
+                        "(0: always the mesh)")
 
     def execute(self, obj):
         pass
@@ -220,9 +220,12 @@ class Skin(object):
 
 
 class ViewProviderSkin(object):
-    """Draws the mesh near the camera and its bounding box far from it
-    (SoLOD: chosen by Coin at each frame, nothing changes in the document
-    while navigating)."""
+    """Draws the mesh when the part is big enough on screen, its bounding box
+    when it is small (SoLevelOfDetail, chosen by Coin at each frame from the
+    projected screen area: works with the orthographic camera FreeCAD uses
+    by default, where zooming does not change the camera distance and a
+    distance-based SoLOD never switches). Nothing changes in the document
+    while navigating."""
 
     def __init__(self, vobj):
         vobj.addProperty("App::PropertyColor", "Color", "Lightweight", "Skin colour")
@@ -235,7 +238,7 @@ class ViewProviderSkin(object):
         self.material = coin.SoMaterial()
         self.material.diffuseColor = (0.8, 0.8, 0.8)
         self.root.addChild(self.material)
-        self.lod = coin.SoLOD()
+        self.lod = coin.SoLevelOfDetail()
         self.root.addChild(self.lod)
         vobj.addDisplayMode(self.root, "LOD")
         self._build(vobj.Object)
@@ -264,8 +267,8 @@ class ViewProviderSkin(object):
         near.addChild(faces)
         self.lod.addChild(near)
         bb = mesh.BoundBox
-        factor = getattr(obj, "LodFactor", 0.0)
-        if factor > 0:
+        pixels = getattr(obj, "LodPixels", 0.0)
+        if pixels > 0:
             far = coin.SoSeparator()
             tr_ = coin.SoTranslation()
             tr_.translation = (bb.Center.x, bb.Center.y, bb.Center.z)
@@ -276,8 +279,7 @@ class ViewProviderSkin(object):
             far.addChild(tr_)
             far.addChild(box)
             self.lod.addChild(far)
-            self.lod.center = (bb.Center.x, bb.Center.y, bb.Center.z)
-            self.lod.range.setValues(0, 1, [bb.DiagonalLength * factor])
+            self.lod.screenArea.setValues(0, 1, [float(pixels)])
 
     def _color(self, vobj):
         try:
@@ -287,7 +289,7 @@ class ViewProviderSkin(object):
             pass
 
     def updateData(self, obj, prop):
-        if prop in ("Mesh", "LodFactor") and hasattr(self, "lod"):
+        if prop in ("Mesh", "LodPixels") and hasattr(self, "lod"):
             self._build(obj)
 
     def onChanged(self, vobj, prop):
@@ -316,10 +318,10 @@ class ViewProviderSkin(object):
 
 def _new_skin(doc, mesh):
     """Skin object: LOD skin (App::FeaturePython + Python view provider) when
-    the preference LightweightLodFactor is above 0, else - or when that
-    fails - a plain Mesh::Feature."""
+    the preference LightweightLodPixels is above 0 (default), else - or
+    when that fails - a plain Mesh::Feature."""
     from . import prefs
-    if prefs.get("LightweightLodFactor") <= 0:
+    if prefs.get("LightweightLodPixels") <= 0:
         sn = doc.addObject("Mesh::Feature", "Skin")
         sn.Mesh = mesh
         return sn
@@ -327,7 +329,7 @@ def _new_skin(doc, mesh):
         import Mesh            # registers Mesh::PropertyMeshKernel
         sn = doc.addObject("App::FeaturePython", "Skin")
         Skin(sn)
-        sn.LodFactor = float(prefs.get("LightweightLodFactor"))
+        sn.LodPixels = float(prefs.get("LightweightLodPixels"))
         sn.Mesh = mesh
         if App.GuiUp:
             ViewProviderSkin(sn.ViewObject)
