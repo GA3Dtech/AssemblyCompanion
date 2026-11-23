@@ -12,6 +12,10 @@ All notable changes to this project are documented here. The format follows
 - Test fixtures generator (`tests/fixtures/build_fixtures.py`) and frozen
   legacy files of version 0.1.0 (`tests/fixtures/legacy/v0.1.0`).
 
+- Unit tests (`tests/unit`, pure Python, FreeCAD stand-ins when absent):
+  subnames, file naming, revisions, CSV, preferences, translations,
+  package.xml.
+
 ### Changed
 - The version is read from `package.xml` only (`version.py`); the unused
   `VERSION = "1.0"` constants are gone.
