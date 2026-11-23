@@ -23,11 +23,20 @@ All notable changes to this project are documented here. The format follows
 - GUI smoke tests (`tests/gui`) and a GitHub Actions CI running every level
   with FreeCAD 1.0.2 and 26.3rc2.
 
+- Explorer and visual insertion: targeted refresh. Right-click a folder
+  header to refresh only that folder (or its subtree); documents saved from
+  FreeCAD under the library refresh their own folder; "Refresh all" and every
+  refresh rebuild only the folders that changed (scroll and filter kept).
+  New preference "Full library scan" (every opening / once per session /
+  only on demand). Scan logic in `library.py`; `api.scan_library` and
+  `api.list_library`; benchmark `tools/bench_library.py`.
+
 ### Fixed
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
   is reported broken.
 
 ### Changed
+- Explorer: the "Scan" button is now "Refresh all".
 - The version is read from `package.xml` only (`version.py`); the unused
   `VERSION = "1.0"` constants are gone.
 

@@ -32,3 +32,22 @@ A "lightweight component" for very large assemblies keeps:
 * a **mesh skin** for display, decimated;
 * a link back to the source file, to open the real part when it has to be
   modified, then refresh the skeleton and the skin.
+
+## Parts library: full scan versus targeted refresh
+
+`tools/bench_library.py` (plain Python) builds a library of 3600 empty
+`.FCStd` files in 200 folders (10 groups of 20) and times the scan plus the
+merge into the cached result. `--latency-ms` adds a delay to every directory
+listing, to mimic a network share (one round trip per listing; on Windows
+sizes and dates come with the listing).
+
+| Operation | Listings | Local disk | 5 ms per listing |
+|---|---|---|---|
+| Full scan | 211 | 11.4 ms | 1175 ms |
+| Refresh one folder | 1 | 0.1 ms | 6.1 ms |
+| Refresh one group + its 20 folders | 21 | 1.2 ms | 116 ms |
+
+The view gains as much: a full rebuild created one card (and one thumbnail
+job) per file, 3600 here; a targeted refresh only recreates the cards of the
+refreshed folder (18 here), the other blocks keep their widgets and
+thumbnails (checked by `tests/gui/test_explorer_refresh.py`).

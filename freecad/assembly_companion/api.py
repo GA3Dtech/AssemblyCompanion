@@ -45,6 +45,7 @@ import FreeCAD as App
 from .errors import (AssemblyCompanionError, NoAssemblyError, NoDocumentError,
                      ObjectNotFoundError, SourceNotFoundError, UnsupportedObjectError,
                      GuiRequiredError)
+from . import library
 from .i18n import tr
 
 API_VERSION = 1
@@ -56,6 +57,7 @@ __all__ = [
     "duplicate_components", "make_lightweight", "restore_full", "new_part_from_selection",
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
+    "scan_library", "list_library",
     "AssemblyCompanionError",
 ]
 
@@ -517,6 +519,56 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  Parts library
+# ----------------------------------------------------------------------
+def _library_folder(folder):
+    from . import prefs
+    folder = folder or prefs.get("LocalMasterDir")
+    if not folder or not os.path.isdir(folder):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(path=folder or ""),
+                                  path=folder or "")
+    return os.path.normpath(folder)
+
+
+def _library_dict(folder, scan):
+    folders = []
+    for d in sorted(scan, key=library.norm):
+        folders.append({"folder": d, "files": [
+            {"path": p, "name": os.path.splitext(os.path.basename(p))[0],
+             "mtime": m, "size": sz} for p, m, sz in scan[d]]})
+    return {"folder": folder, "count": sum(len(f["files"]) for f in folders),
+            "folders": folders}
+
+
+def scan_library(folder=None, recursive=True):
+    """Read the parts library on disk (default: the "Parts library" folder of
+    the preferences), or only `folder` when recursive=False. The explorer
+    disk cache of the library is updated with the result.
+    -> {"folder", "count", "folders": [{"folder", "files": [{"path", "name",
+    "mtime", "size"}]}]}"""
+    from . import prefs
+    folder = _library_folder(folder)
+    scan = library.scan_folder(folder, recursive)
+    master = prefs.get("LocalMasterDir")
+    if master and os.path.isdir(master) and library.is_inside(folder, master):
+        cached = library.load_scan_cache(os.path.normpath(master)) or {}
+        merged, _changed = library.merge_scan(cached, folder, scan, recursive)
+        library.save_scan_cache(os.path.normpath(master), merged)
+    return _library_dict(folder, scan)
+
+
+def list_library(folder=None):
+    """Parts library as last seen by the explorer (disk cache, no folder
+    walk: instant on a network share); scans it when there is no cache.
+    Same return value as scan_library()."""
+    folder = _library_folder(folder)
+    cached = library.load_scan_cache(folder)
+    if cached is None:
+        return scan_library(folder)
+    return _library_dict(folder, cached)
 
 
 def reactivate_assembly(doc):

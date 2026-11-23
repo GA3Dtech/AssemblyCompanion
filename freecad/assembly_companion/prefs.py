@@ -40,6 +40,7 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
+    "ExplorerFullScan": "always",   # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "LeaveAssemblyForSelectionSets": True,
     "SelectionSetsElements": False,
@@ -156,6 +157,15 @@ class PreferencePage(object):
         self.new_dir = _FolderField(self.form, tr("Working folder for new parts"))
         self.new_dir.edit.setPlaceholderText(tr("Empty: folder of the assembly"))
         f.addRow(tr("Working folder:"), self.new_dir.widget)
+        self.full_scan = QtWidgets.QComboBox()
+        self.full_scan.addItem(tr("Every time an explorer opens"), "always")
+        self.full_scan.addItem(tr("Once per FreeCAD session"), "session")
+        self.full_scan.addItem(tr("Only with “Refresh all”"), "manual")
+        self.full_scan.setToolTip(
+            tr("The explorer shows the library from its cache at once. Files saved from "
+               "FreeCAD refresh their own folder; a full rescan finds files added outside "
+               "of FreeCAD."))
+        f.addRow(tr("Full library scan:"), self.full_scan)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -221,6 +231,8 @@ class PreferencePage(object):
         self.show_in_asm.setChecked(get("ShowInAssemblyWorkbench"))
         self.master_dir.edit.setText(get("LocalMasterDir"))
         self.new_dir.edit.setText(get("NewPartDir"))
+        i = self.full_scan.findData(get("ExplorerFullScan"))
+        self.full_scan.setCurrentIndex(i if i >= 0 else 0)
         self.prefix.setText(get("NewPartPrefix"))
         self.digits.setValue(get("NewPartDigits"))
         self.revision.setText(get("NewPartRevision"))
@@ -241,6 +253,7 @@ class PreferencePage(object):
         put("ShowInAssemblyWorkbench", self.show_in_asm.isChecked())
         put("LocalMasterDir", self.master_dir.edit.text().strip())
         put("NewPartDir", self.new_dir.edit.text().strip())
+        put("ExplorerFullScan", self.full_scan.currentData())
         put("NewPartPrefix", self.prefix.text().strip())
         put("NewPartDigits", self.digits.value())
         put("NewPartRevision", self.revision.text().strip())
