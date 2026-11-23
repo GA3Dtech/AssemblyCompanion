@@ -116,7 +116,7 @@ FreeCAD restart (or a module reload).
   provider, which does not handle a custom display mode.
 - MCP screenshots refit the view: to check what a zoom level shows, use
   `ActiveView.saveImage(path, w, h, "Current")` and read the image.
-- Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
+- Must run on FreeCAD 1.1+ (tested on 1.1 and 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
 
 ## Panels (generic model, QML or widgets)
@@ -166,8 +166,8 @@ Every logic change comes with tests at the right level. Levels:
   from `sys.modules` before each run, restore any preference a test or
   script changes, e.g. `LocalMasterDir`).
 - `python3 tools/i18n.py check` and `python3 tools/api_doc.py --check` must
-  pass; the CI (`.github/workflows/ci.yml`) runs everything on FreeCAD 1.0.2
-  and 26.3.
+  pass; the CI (`.github/workflows/ci.yml`) runs everything on FreeCAD 1.1.4,
+  26.3 and the latest weekly build (allowed to fail: early warning).
 - freecadcmd pitfalls: scripts run with `__name__` = file stem, need an
   absolute path, must flush stdout before `os._exit`, and may exit 0 on
   failure (check the JUnit report: `tests/ci/check_junit.py`).

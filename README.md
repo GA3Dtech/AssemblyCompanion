@@ -89,7 +89,7 @@ App.closeDocument(doc.Name)
 ## Tests
 
 Four levels, all run by the GitHub Actions CI with real FreeCAD builds
-(1.0.2 and 26.3):
+(1.1.4, 26.3 and the latest weekly development build):
 
 | Level | Folder | Runs in | What |
 |---|---|---|---|
@@ -113,7 +113,7 @@ Until it is listed in the Addon Manager: *Edit → Preferences → Addon Manager
 
 Manual install: copy this folder into your FreeCAD `Mod` directory.
 
-Requires FreeCAD 1.0 or newer.
+Requires FreeCAD 1.1 or newer.
 
 ## Status
 

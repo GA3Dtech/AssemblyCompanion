@@ -24,7 +24,8 @@ All notable changes to this project are documented here. The format follows
   FreeCAD without any addon and with the 0.1.0 code (`tests/vanilla`).
 
 - GUI smoke tests (`tests/gui`) and a GitHub Actions CI running every level
-  with FreeCAD 1.0.2 and 26.3rc2.
+  with FreeCAD 1.1.4, 26.3rc2 and the latest weekly build (allowed to fail);
+  failures are reported as annotations.
 
 - Explorer and visual insertion: targeted refresh. Right-click a folder
   header to refresh only that folder (or its subtree); documents saved from
@@ -47,6 +48,7 @@ All notable changes to this project are documented here. The format follows
   is reported broken.
 
 ### Changed
+- Minimum FreeCAD version: 1.1 (was 1.0).
 - Explorer: the "Scan" button is now "Refresh all".
 - The version is read from `package.xml` only (`version.py`); the unused
   `VERSION = "1.0"` constants are gone.
