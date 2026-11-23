@@ -40,7 +40,7 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
-    "ExplorerFullScan": "always",   # full library rescan when an explorer opens (always / session / manual)
+    "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
     "LeaveAssemblyForSelectionSets": True,

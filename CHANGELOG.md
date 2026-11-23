@@ -32,7 +32,7 @@ All notable changes to this project are documented here. The format follows
   FreeCAD under the library refresh their own folder; "Refresh all" and every
   refresh rebuild only the folders that changed (scroll and filter kept).
   New preference "Full library scan" (every opening / once per session /
-  only on demand). Scan logic in `library.py`; `api.scan_library` and
+  only on demand, default once per session). Scan logic in `library.py`; `api.scan_library` and
   `api.list_library`; benchmark `tools/bench_library.py`.
 
 - Generic panels: a panel is described once as a model (`panel_model.py`)
