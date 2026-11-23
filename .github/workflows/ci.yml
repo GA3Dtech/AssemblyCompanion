@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: LGPL-2.1-or-later
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.17.6
+      - run: ruff check .
+      - run: python3 tools/i18n.py check
+
+  unit:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install pytest
+      - run: python -m pytest -q tests/unit
+
+  freecad:
+    # Pinned releases: 1.0.2 is the oldest supported version (Qt 5,
+    # Python 3.11); no 26.x is published as a stable release yet, so the
+    # newest 26.x release candidate is used.
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        freecad: ["1.0.2", "26.3rc2"]
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # git archive of the 0.1.0 code (tests/vanilla)
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: System libraries for FreeCAD
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libgl1 libegl1 libopengl0 libglu1-mesa libxkbcommon0 \
+            libxkbcommon-x11-0 libfontconfig1 libdbus-1-3 libxcb-cursor0 xvfb libgl1-mesa-dri
+      - uses: actions/cache@v4
+        with:
+          path: ~/fc-cache/FreeCAD-${{ matrix.freecad }}.AppImage
+          key: freecad-appimage-${{ matrix.freecad }}
+      - name: Prepare FreeCAD
+        run: tests/ci/freecad_setup.sh "${{ matrix.freecad }}" ~/fc-cache
+      - name: Tests inside FreeCAD (headless, with the addon)
+        run: |
+          HOME_FC=$(mktemp -d)
+          mkdir -p "$HOME_FC/Mod"
+          ln -s "$GITHUB_WORKSPACE" "$HOME_FC/Mod/AssemblyCompanion"
+          FREECAD_USER_HOME="$HOME_FC" AC_PYTEST_ARGS="tests/freecad tests/vanilla -v" \
+            AC_JUNIT="$GITHUB_WORKSPACE/junit-freecad.xml" \
+            "$FC_APPRUN" freecadcmd "$GITHUB_WORKSPACE/tests/run_in_freecad.py" 2>&1 | tee freecad.log
+          python3 tests/ci/check_junit.py junit-freecad.xml
+      - name: GUI smoke tests (xvfb)
+        run: |
+          HOME_FC=$(mktemp -d)
+          mkdir -p "$HOME_FC/Mod"
+          ln -s "$GITHUB_WORKSPACE" "$HOME_FC/Mod/AssemblyCompanion"
+          FREECAD_USER_HOME="$HOME_FC" AC_PYTEST_ARGS="tests/gui -v" \
+            AC_JUNIT="$GITHUB_WORKSPACE/junit-gui.xml" LIBGL_ALWAYS_SOFTWARE=1 \
+            xvfb-run -a -s "-screen 0 1600x1000x24" \
+            "$FC_APPRUN" freecad "$GITHUB_WORKSPACE/tests/run_in_freecad.py" 2>&1 | tee gui.log
+          python3 tests/ci/check_junit.py junit-gui.xml
+      - name: Upload logs and reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: freecad-${{ matrix.freecad }}-logs
+          path: |
+            *.log
+            junit-*.xml
+            ~/fc-cache/squashfs-root/usr/share/doc/*.txt
+          if-no-files-found: ignore

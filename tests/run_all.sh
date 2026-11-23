@@ -30,7 +30,11 @@ pytest_dir() {  # folder holding pytest for the Python of the AppImage
 
 run_unit() {
     echo "== unit"
-    (cd "$ROOT" && python3 -m pytest -q tests/unit) || status=1
+    if python3 -c "import pytest" 2>/dev/null; then
+        (cd "$ROOT" && python3 -m pytest -q tests/unit) || status=1
+    else
+        (cd "$ROOT" && uvx --with pytest pytest -q tests/unit) || status=1
+    fi
 }
 
 run_freecad_level() {  # run_freecad_level <pytest args> <with addon: 1|0>
