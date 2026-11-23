@@ -16,6 +16,14 @@ All notable changes to this project are documented here. The format follows
   subnames, file naming, revisions, CSV, preferences, translations,
   package.xml.
 
+- Public API `api.py` (+ `errors.py`) for scripts, agents and the MCP server.
+- FreeCAD integration tests (`tests/freecad`) and compatibility tests with a
+  FreeCAD without any addon and with the 0.1.0 code (`tests/vanilla`).
+
+### Fixed
+- Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
+  is reported broken.
+
 ### Changed
 - The version is read from `package.xml` only (`version.py`); the unused
   `VERSION = "1.0"` constants are gone.
