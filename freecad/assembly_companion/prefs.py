@@ -42,6 +42,7 @@ DEFAULTS = {
     "FreezeOnInsert": False,
     "ExplorerFullScan": "always",   # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
+    "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
     "LeaveAssemblyForSelectionSets": True,
     "SelectionSetsElements": False,
     "LightweightLodPixels": 2000,   # LOD skins drawn as boxes below n pixels (0: plain mesh)  # selection sets store faces / edges / vertices
@@ -141,6 +142,11 @@ class PreferencePage(object):
         self.show_in_asm = QtWidgets.QCheckBox(
             tr("Show the Assembly Companion toolbar in the Assembly workbench"))
         f.addRow(self.show_in_asm)
+        self.use_qml = QtWidgets.QCheckBox(tr("Use the QML panels"))
+        self.use_qml.setToolTip(
+            tr("Panels drawn with Qt Quick. Unchecked, or when Qt Quick is not available, "
+               "the same panels are shown with classic widgets."))
+        f.addRow(self.use_qml)
         note = QtWidgets.QLabel(tr("Language and toolbar changes apply after restarting FreeCAD."))
         note.setWordWrap(True)
         note.setStyleSheet("color: gray;")
@@ -229,6 +235,7 @@ class PreferencePage(object):
         i = self.language.findData(get("Language"))
         self.language.setCurrentIndex(i if i >= 0 else 0)
         self.show_in_asm.setChecked(get("ShowInAssemblyWorkbench"))
+        self.use_qml.setChecked(get("UseQmlPanels"))
         self.master_dir.edit.setText(get("LocalMasterDir"))
         self.new_dir.edit.setText(get("NewPartDir"))
         i = self.full_scan.findData(get("ExplorerFullScan"))
@@ -251,6 +258,7 @@ class PreferencePage(object):
     def saveSettings(self):
         put("Language", self.language.currentData())
         put("ShowInAssemblyWorkbench", self.show_in_asm.isChecked())
+        put("UseQmlPanels", self.use_qml.isChecked())
         put("LocalMasterDir", self.master_dir.edit.text().strip())
         put("NewPartDir", self.new_dir.edit.text().strip())
         put("ExplorerFullScan", self.full_scan.currentData())

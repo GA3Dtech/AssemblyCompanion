@@ -34,6 +34,12 @@ All notable changes to this project are documented here. The format follows
   only on demand). Scan logic in `library.py`; `api.scan_library` and
   `api.list_library`; benchmark `tools/bench_library.py`.
 
+- Generic panels: a panel is described once as a model (`panel_model.py`)
+  and shown either in QML (`bridge.py`, `qml_host.py`, `resources/qml/`) or,
+  without Qt Quick, with classic widgets built from the same model.
+  Preference "Use the QML panels". `tools/i18n.py` also scans the `.qml`
+  files. First panel migrated: "Frozen parts up to date?".
+
 ### Fixed
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
   is reported broken.
