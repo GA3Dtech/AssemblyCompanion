@@ -20,6 +20,9 @@ All notable changes to this project are documented here. The format follows
 - FreeCAD integration tests (`tests/freecad`) and compatibility tests with a
   FreeCAD without any addon and with the 0.1.0 code (`tests/vanilla`).
 
+- GUI smoke tests (`tests/gui`) and a GitHub Actions CI running every level
+  with FreeCAD 1.0.2 and 26.3rc2.
+
 ### Fixed
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
   is reported broken.
