@@ -158,9 +158,14 @@ def _new(name):
 # ----------------------------------------------------------------------
 def build_basic(folder):
     os.makedirs(folder, exist_ok=True)
-    d_plate = _new("plate"); plate = plate_body(d_plate); _save(d_plate, os.path.join(folder, "plate.FCStd"))
-    d_pin = _new("pin"); pin = pin_body(d_pin); _save(d_pin, os.path.join(folder, "pin.FCStd"))
-    d_block = _new("block"); block = box_body(d_block, "Block", 40, 40, 20)
+    d_plate = _new("plate")
+    plate = plate_body(d_plate)
+    _save(d_plate, os.path.join(folder, "plate.FCStd"))
+    d_pin = _new("pin")
+    pin = pin_body(d_pin)
+    _save(d_pin, os.path.join(folder, "pin.FCStd"))
+    d_block = _new("block")
+    block = box_body(d_block, "Block", 40, 40, 20)
     _save(d_block, os.path.join(folder, "block.FCStd"))
 
     d = _new("basic_assembly")
@@ -194,7 +199,8 @@ def build_std_part(folder):
     part.addObject(left)
     part.addObject(right)
     _save(d_c, os.path.join(folder, "cotes.FCStd"))
-    d_b = _new("base"); base = box_body(d_b, "Base", 100, 60, 10)
+    d_b = _new("base")
+    base = box_body(d_b, "Base", 100, 60, 10)
     _save(d_b, os.path.join(folder, "base.FCStd"))
 
     d = _new("std_part_assembly")
@@ -213,9 +219,14 @@ def build_std_part(folder):
 
 def build_subassembly(folder):
     os.makedirs(folder, exist_ok=True)
-    d_a = _new("sub_a"); a = box_body(d_a, "BlockA", 30, 30, 30); _save(d_a, os.path.join(folder, "block_a.FCStd"))
-    d_b = _new("sub_b"); b = box_body(d_b, "BlockB", 30, 30, 10); _save(d_b, os.path.join(folder, "block_b.FCStd"))
-    d_s = _new("sub"); d_s.saveAs(os.path.join(folder, "sub.FCStd"))
+    d_a = _new("sub_a")
+    a = box_body(d_a, "BlockA", 30, 30, 30)
+    _save(d_a, os.path.join(folder, "block_a.FCStd"))
+    d_b = _new("sub_b")
+    b = box_body(d_b, "BlockB", 30, 30, 10)
+    _save(d_b, os.path.join(folder, "block_b.FCStd"))
+    d_s = _new("sub")
+    d_s.saveAs(os.path.join(folder, "sub.FCStd"))
     sub = new_assembly(d_s, "SubAssembly")
     la = link(d_s, sub, a, "BlockA")
     lb = link(d_s, sub, b, "BlockB", App.Placement(App.Vector(0, 0, 30), App.Rotation()))
@@ -224,9 +235,11 @@ def build_subassembly(folder):
     joint(sub, "Fixed", (la, [find_face(a.Shape, _top(30))] * 2),
           (lb, [find_face(b.Shape, _top(0))] * 2), "Fixed")
     _save(d_s, d_s.FileName)
-    d_base = _new("sub_base"); base = box_body(d_base, "Base", 100, 100, 10)
+    d_base = _new("sub_base")
+    base = box_body(d_base, "Base", 100, 100, 10)
     _save(d_base, os.path.join(folder, "base.FCStd"))
-    d = _new("main"); d.saveAs(os.path.join(folder, "main.FCStd"))
+    d = _new("main")
+    d.saveAs(os.path.join(folder, "main.FCStd"))
     asm = new_assembly(d)
     l_base = link(d, asm, base, "Base")
     link(d, asm, sub, "Sub", App.Placement(App.Vector(10, 10, 10), App.Rotation()))
@@ -240,7 +253,8 @@ def build_collisions(folder):
     """A [0,10]^3, B shifted 5 in X (common volume 500 mm3), C from x=15
     (touches B on a face, no common volume)."""
     os.makedirs(folder, exist_ok=True)
-    d = _new("collisions"); d.saveAs(os.path.join(folder, "collisions.FCStd"))
+    d = _new("collisions")
+    d.saveAs(os.path.join(folder, "collisions.FCStd"))
     asm = new_assembly(d)
     for name, x in (("A", 0), ("B", 5), ("C", 15)):
         b = box_body(d, name, 10, 10, 10, placement=App.Placement(App.Vector(x, 0, 0),
@@ -257,11 +271,13 @@ def build_revisions(folder):
         plate_body(dr, "Plate", thick)
         _save(dr, os.path.join(folder, "AB_001%s_Plate.FCStd" % rev))
         _close(dr)
-    d_base = _new("rev_base"); base = box_body(d_base, "Base", 150, 100, 5)
+    d_base = _new("rev_base")
+    base = box_body(d_base, "Base", 150, 100, 5)
     _save(d_base, os.path.join(folder, "base.FCStd"))
     d_a = App.openDocument(os.path.join(folder, "AB_001a_Plate.FCStd"))
     plate = d_a.getObject("Plate")
-    d = _new("rev_assembly"); d.saveAs(os.path.join(folder, "assembly.FCStd"))
+    d = _new("rev_assembly")
+    d.saveAs(os.path.join(folder, "assembly.FCStd"))
     asm = new_assembly(d)
     l_base = link(d, asm, base, "Base")
     l_plate = link(d, asm, plate, "Plate", App.Placement(App.Vector(0, 0, 5), App.Rotation()))
@@ -275,8 +291,11 @@ def build_revisions(folder):
 
 def build_link_array(folder):
     os.makedirs(folder, exist_ok=True)
-    d_b = _new("bolt"); bolt = pin_body(d_b, "Bolt"); _save(d_b, os.path.join(folder, "bolt.FCStd"))
-    d = _new("array"); d.saveAs(os.path.join(folder, "assembly.FCStd"))
+    d_b = _new("bolt")
+    bolt = pin_body(d_b, "Bolt")
+    _save(d_b, os.path.join(folder, "bolt.FCStd"))
+    d = _new("array")
+    d.saveAs(os.path.join(folder, "assembly.FCStd"))
     asm = new_assembly(d)
     arr = link(d, asm, bolt, "BoltArray")
     arr.ElementCount = 4

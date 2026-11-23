@@ -56,7 +56,6 @@ from . import docs
 from . import prefs
 from .i18n import tr
 
-VERSION = "1.0"
 
 # ----------------------------------------------------------------------
 #  Dimensions (same as PiStock Local Explorer)

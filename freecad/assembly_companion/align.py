@@ -44,7 +44,6 @@ from .i18n import tr
 
 V = App.Vector
 
-VERSION = "1.0"
 # 'auto' = FreeCAD's own dragger (the Transform tool one) when available,
 # 'coin' = generic Coin dragger (box), plainer but always available.
 DRAGGER = 'auto'

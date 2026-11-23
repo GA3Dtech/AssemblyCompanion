@@ -4,7 +4,7 @@ durable assemblies, visual parts library, selection sets."""
 
 import os
 
-__version__ = "0.1.0"
+from .version import __version__  # noqa: F401  (single source: package.xml)
 
 PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
 ICON_DIR = os.path.join(PACKAGE_DIR, "resources", "icons")

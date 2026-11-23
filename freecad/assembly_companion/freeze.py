@@ -41,7 +41,7 @@ import Part
 
 from .i18n import tr
 
-VERSION = "1.0"
+from .version import __version__ as VERSION  # single source: package.xml
 GROUPE_COPIES = "Solides_figes"     # group holding the frozen copies
 GROUPE_INUTILES = "Solides_figes_inutilises"   # sub-group: copies no Link uses
 
