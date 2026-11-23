@@ -19,6 +19,7 @@ jobs:
       - run: pip install ruff==0.17.6
       - run: ruff check .
       - run: python3 tools/i18n.py check
+      - run: python3 tools/api_doc.py --check
 
   unit:
     runs-on: ubuntu-24.04

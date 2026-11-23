@@ -60,14 +60,18 @@ class _Command:
 #  Actions
 # --------------------------------------------------------------------------
 
+def _selected_link_names():
+    """Names of the Links targeted by the selection; None = whole document."""
+    links = _module("freeze").selection_liens()
+    return None if links is None else [o.Name for o in links]
+
+
 def _freeze():
-    m = _module("freeze")
-    m.figer(App.ActiveDocument, m.selection_liens())
+    _module("api").freeze_parts(App.ActiveDocument, _selected_link_names())
 
 
 def _relink():
-    m = _module("freeze")
-    m.relier(App.ActiveDocument, m.selection_liens())
+    _module("api").relink_parts(App.ActiveDocument, _selected_link_names())
 
 
 def _delete_joints():

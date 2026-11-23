@@ -156,10 +156,11 @@ def export(doc=None):
         from PySide import QtWidgets
     except ImportError:
         from PySide6 import QtWidgets
+    from . import api
     doc = doc or docs.working_document()
     if doc is None:
         raise RuntimeError(tr("No active document."))
-    rows = collect(roots_of(doc), doc)
+    rows = api.bom(doc)
     if not rows:
         raise RuntimeError(tr("No part found in this document."))
     base = os.path.splitext(doc.FileName)[0] if doc.FileName else \
@@ -171,8 +172,8 @@ def export(doc=None):
         return None
     if not path.lower().endswith(".csv"):
         path += ".csv"
-    write_csv(path, rows)
-    total = sum(rows.values())
+    api.export_bom_csv(doc, path)
+    total = sum(r["quantity"] for r in rows)
     App.Console.PrintMessage(tr("BOM: {n} different part(s), {total} in all, written to "
                                 "{file}").format(n=len(rows), total=total, file=path) + "\n")
     return path

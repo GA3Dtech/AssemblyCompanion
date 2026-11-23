@@ -53,6 +53,39 @@ When the built-in **Assembly** workbench is active, the Companion tools are avai
 
 The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
 
+## API for agents (MCP)
+
+`freecad/assembly_companion/api.py` exposes every tool as a plain function
+for scripts, AI agents and the
+[FreeCAD MCP server](https://github.com/neka-nat/freecad-mcp): no dialog,
+the document passed explicitly, JSON-serialisable results, typed errors
+(`errors.py`) and `dry_run=True` on the functions that change a document.
+`api.describe()` returns the catalogue; the reference is
+[docs/api.md](docs/api.md).
+
+In the running FreeCAD (MCP `execute_code`):
+
+```python
+from freecad.assembly_companion import api
+print(api.list_components("Assembly"))
+print(api.freeze_parts("Assembly", dry_run=True))   # what would be frozen
+print(api.diagnose("Assembly")["broken"])
+```
+
+Batch on a file without the GUI (MCP `execute_code_headless`, or
+`freecadcmd`): bill of materials, collisions, archive, diagnostic.
+
+```python
+import FreeCAD as App
+from freecad.assembly_companion import api
+doc = App.openDocument("/path/to/assembly.FCStd")
+api.export_bom_csv(doc, "/path/to/assembly_BOM.csv")
+print(api.check_collisions(doc))
+print(api.diagnose(doc)["broken"])
+api.archive(doc, "/path/to/assembly_pack.zip")
+App.closeDocument(doc.Name)
+```
+
 ## Installation
 
 Until it is listed in the Addon Manager: *Edit → Preferences → Addon Manager → Custom repositories*, add `https://github.com/GA3Dtech/AssemblyCompanion` (branch `main`), then install **Assembly Companion** from the Addon Manager and restart FreeCAD.
