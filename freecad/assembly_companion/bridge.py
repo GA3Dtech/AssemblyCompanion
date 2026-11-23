@@ -197,7 +197,9 @@ class WidgetForm(QtWidgets.QWidget):
                 w = self._editor(p)
                 w.setToolTip(p["tip"])
                 self.editors[p["name"]] = (p, w)
-                if p["kind"] in ("note", "list", "bool"):
+                labelled_note = p["kind"] == "note" and p["label"] and \
+                    bridge.values.get(p["name"]) != p["label"]
+                if p["kind"] in ("list", "bool") or (p["kind"] == "note" and not labelled_note):
                     form.addRow(w)
                 else:
                     form.addRow(p["label"], w)

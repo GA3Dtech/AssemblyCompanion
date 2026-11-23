@@ -8,12 +8,24 @@ import QtQuick 2.15
 Item {
     property var p
     property var th
+    id: row
+    // a note whose text differs from its label shows the label in front (e.g. "File:")
+    property string value: { var v = bridge.values[p.name]; return v === undefined ? p.label : String(v) }
+    property bool labelled: p.label.length > 0 && value !== p.label
     implicitHeight: t.implicitHeight + 6
     width: parent ? parent.width : 0
+    RowLabel {
+        id: lab
+        th: row.th
+        visible: row.labelled
+        width: row.labelled ? Math.round(row.width * 0.28) : 0
+        text: p.label
+    }
     Text {
         id: t
-        width: parent.width
-        text: { var v = bridge.values[p.name]; return v === undefined ? p.label : String(v) }
+        x: lab.width
+        width: parent.width - x
+        text: row.value
         color: th.text
         wrapMode: Text.WordWrap
         font.pixelSize: Math.round(12 * th.s); font.family: th.family

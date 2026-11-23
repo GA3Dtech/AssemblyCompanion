@@ -57,6 +57,7 @@ import re
 
 import FreeCAD as App
 
+from . import panel_model
 from . import prefs
 from .i18n import tr
 
@@ -269,159 +270,120 @@ def _qt():
     return QtWidgets, QtCore
 
 
-def _dialog_class():
-    QtWidgets, QtCore = _qt()
+class NewPartPanel(panel_model.PanelModel):
+    """Working folder + PREFIX_NNNr_Description with a live preview; OK
+    creates the part through api.new_part_from_selection."""
 
-    class NewPartDialog(QtWidgets.QDialog):
-        """Working folder + PREFIX_NNNr_Description, with a live preview."""
+    width = 600
 
-        def __init__(self, asm_doc, count, parent=None):
-            super(NewPartDialog, self).__init__(parent)
-            self.setWindowTitle(tr("New part from selection"))
-            self.setMinimumWidth(520)
-            form = QtWidgets.QFormLayout(self)
+    def __init__(self, asm_doc, keys):
+        super().__init__()
+        self.doc, self.keys = asm_doc, keys
+        self.digits = prefs.get("NewPartDigits")
+        self.title = tr("New part from selection")
+        self.hint = tr("A new file is created with a Body holding a SubShapeBinder of the "
+                       "{n} selected element(s).").format(n=len(keys))
+        P = panel_model.Param
+        self.add(P("folder", tr("Working folder:"), "path", self._default_folder(asm_doc),
+                   mode="dir"))
+        self.add(P("prefix", tr("Prefix:"), "text",
+                   prefs.get("NewPartLastPrefix") or prefs.get("NewPartPrefix"),
+                   placeholder=tr("e.g. AB")))
+        self.add(P("number", tr("Number:"), "int", 0, min=0, max=10 ** self.digits - 1,
+                   tip=tr("First number not used by this prefix in the working folder")))
+        self.add(P("revision", tr("Revision:"), "text", prefs.get("NewPartRevision")))
+        self.add(P("description", tr("Description:"), "text", placeholder=tr("e.g. Bracket")))
+        self.add(P("preview", tr("File:"), "note"))
+        mode = prefs.get("NewPartBinderMode")
+        self.add(P("mode", tr("Binder:"), "choice", mode if mode in ("copy", "linked") else "copy",
+                   options=[("copy", tr("Independent copy (recommended)")),
+                            ("linked", tr("Linked to the assembly (follows its changes)"))],
+                   tip=tr("Independent copy: the binder keeps the geometry of the selection "
+                          "as it is now; the new part does not depend on the assembly and "
+                          "can be inserted into it.\nLinked: the binder updates when the "
+                          "assembly changes; the new part cannot be inserted into this "
+                          "assembly (the files would depend on each other).")))
+        self.add(P("insert", tr("Insert the new part into the active assembly"), "bool",
+                   prefs.get("NewPartInsert")))
+        self.add(P("switch_wb", tr("Switch to the Part Design workbench"), "bool",
+                   prefs.get("NewPartSwitchWorkbench")))
+        self.action(panel_model.Action(
+            "next", tr("Next free"),
+            tip=tr("First number not used by this prefix in the working folder")))
+        self.action(panel_model.Action("create", tr("Create"), primary=True, accept=True))
+        self._next_free()
+        self.changed("mode")
 
-            info = QtWidgets.QLabel(tr("A new file is created with a Body holding a "
-                                       "SubShapeBinder of the {n} selected element(s).")
-                                    .format(n=count))
-            info.setWordWrap(True)
-            form.addRow(info)
+    @staticmethod
+    def _default_folder(asm_doc):
+        for d in (prefs.get("NewPartLastDir"), prefs.get("NewPartDir")):
+            if d and os.path.isdir(d):
+                return d
+        if asm_doc is not None and asm_doc.FileName:
+            return os.path.dirname(asm_doc.FileName)
+        return os.path.expanduser("~")
 
-            row = QtWidgets.QHBoxLayout()
-            self.folder = QtWidgets.QLineEdit(self._default_folder(asm_doc))
-            browse = QtWidgets.QPushButton(tr("Browse…"))
-            browse.clicked.connect(self._browse)
-            row.addWidget(self.folder, 1)
-            row.addWidget(browse)
-            form.addRow(tr("Working folder:"), row)
+    def path(self):
+        v = self.values
+        return os.path.join(v["folder"].strip(), file_name(
+            v["prefix"], v["number"], self.digits, v["revision"], v["description"]))
 
-            self.prefix = QtWidgets.QLineEdit(prefs.get("NewPartLastPrefix")
-                                              or prefs.get("NewPartPrefix"))
-            self.prefix.setPlaceholderText(tr("e.g. AB"))
-            form.addRow(tr("Prefix:"), self.prefix)
+    def problem(self):
+        """Why the file cannot be created, or ""."""
+        if not os.path.isdir(self.values["folder"].strip()):
+            return tr("the folder does not exist")
+        if os.path.exists(self.path()):
+            return tr("already exists")
+        return ""
 
-            row = QtWidgets.QHBoxLayout()
-            self.number = QtWidgets.QSpinBox()
-            self.number.setRange(0, 10 ** prefs.get("NewPartDigits") - 1)
-            self.next_btn = QtWidgets.QPushButton(tr("Next free"))
-            self.next_btn.setToolTip(tr("First number not used by this prefix in the "
-                                        "working folder"))
-            self.next_btn.clicked.connect(self._next_free)
-            row.addWidget(self.number)
-            row.addWidget(self.next_btn)
-            row.addStretch(1)
-            form.addRow(tr("Number:"), row)
+    def _next_free(self):
+        self.values["number"] = next_number(self.values["folder"].strip(),
+                                            self.values["prefix"], self.digits)
+        self._update()
 
-            self.revision = QtWidgets.QLineEdit(prefs.get("NewPartRevision"))
-            self.revision.setMaximumWidth(80)
-            form.addRow(tr("Revision:"), self.revision)
+    def _update(self):
+        text, why = os.path.basename(self.path()), self.problem()
+        self.values["preview"] = text + ("  —  " + why if why else "")
 
-            self.description = QtWidgets.QLineEdit()
-            self.description.setPlaceholderText(tr("e.g. Bracket"))
-            form.addRow(tr("Description:"), self.description)
-
-            self.preview = QtWidgets.QLabel()
-            self.preview.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
-            form.addRow(tr("File:"), self.preview)
-
-            self.mode = QtWidgets.QComboBox()
-            self.mode.addItem(tr("Independent copy (recommended)"), "copy")
-            self.mode.addItem(tr("Linked to the assembly (follows its changes)"), "linked")
-            self.mode.setToolTip(tr(
-                "Independent copy: the binder keeps the geometry of the selection as "
-                "it is now; the new part does not depend on the assembly and can be "
-                "inserted into it.\nLinked: the binder updates when the assembly "
-                "changes; the new part cannot be inserted into this assembly "
-                "(the files would depend on each other)."))
-            i = self.mode.findData(prefs.get("NewPartBinderMode"))
-            self.mode.setCurrentIndex(i if i >= 0 else 0)
-            form.addRow(tr("Binder:"), self.mode)
-
-            self.insert = QtWidgets.QCheckBox(tr("Insert the new part into the active assembly"))
-            self.insert.setChecked(prefs.get("NewPartInsert"))
-            form.addRow(self.insert)
-            self.mode.currentIndexChanged.connect(self._mode_changed)
-            self._mode_changed()
-            self.switch_wb = QtWidgets.QCheckBox(tr("Switch to the Part Design workbench"))
-            self.switch_wb.setChecked(prefs.get("NewPartSwitchWorkbench"))
-            form.addRow(self.switch_wb)
-
-            self.buttons = QtWidgets.QDialogButtonBox(
-                QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel)
-            self.buttons.accepted.connect(self.accept)
-            self.buttons.rejected.connect(self.reject)
-            form.addRow(self.buttons)
-
-            for w in (self.folder, self.prefix, self.revision, self.description):
-                w.textChanged.connect(self._update)
-            self.number.valueChanged.connect(self._update)
-            self.folder.editingFinished.connect(self._next_free)
-            self.prefix.editingFinished.connect(self._next_free)
+    def changed(self, name):
+        if name in ("folder", "prefix"):
             self._next_free()
-            self.description.setFocus()
+        elif name == "mode":
+            # A linked binder makes the files depend on each other: no insertion
+            if self.values["mode"] == "linked":
+                self.values["insert"] = False
+                self.hidden.add("insert")
+            else:
+                self.hidden.discard("insert")
+        self._update()
 
-        def _default_folder(self, asm_doc):
-            for d in (prefs.get("NewPartLastDir"), prefs.get("NewPartDir")):
-                if d and os.path.isdir(d):
-                    return d
-            if asm_doc is not None and asm_doc.FileName:
-                return os.path.dirname(asm_doc.FileName)
-            return os.path.expanduser("~")
-
-        def _browse(self):
-            d = QtWidgets.QFileDialog.getExistingDirectory(
-                self, tr("Working folder"), self.folder.text())
-            if d:
-                self.folder.setText(d)
-                self._next_free()
-
-        def _next_free(self):
-            self.number.setValue(next_number(self.folder.text().strip(),
-                                             self.prefix.text(), prefs.get("NewPartDigits")))
-            self._update()
-
-        def path(self):
-            return os.path.join(self.folder.text().strip(), file_name(
-                self.prefix.text(), self.number.value(), prefs.get("NewPartDigits"),
-                self.revision.text(), self.description.text()))
-
-        def _update(self):
-            path = self.path()
-            ok = os.path.isdir(self.folder.text().strip())
-            text = os.path.basename(path)
-            if not ok:
-                text += "  —  " + tr("the folder does not exist")
-            elif os.path.exists(path):
-                text += "  —  " + tr("already exists")
-                ok = False
-            self.preview.setText(text)
-            self.preview.setStyleSheet("" if ok else "color: #b91c1c;")
-            self.buttons.button(QtWidgets.QDialogButtonBox.Ok).setEnabled(ok)
-
-        def linked(self):
-            return self.mode.currentData() == "linked"
-
-        def _mode_changed(self, *_args):
-            self.insert.setEnabled(not self.linked())
-            if self.linked():
-                self.insert.setChecked(False)
-
-        def remember(self):
-            prefs.put("NewPartLastDir", self.folder.text().strip())
-            prefs.put("NewPartLastPrefix", self.prefix.text().strip())
-            prefs.put("NewPartBinderMode", self.mode.currentData())
-
-    return NewPartDialog
+    def trigger(self, name):
+        from . import api
+        if name == "next":
+            self._next_free()
+            return
+        why = self.problem()
+        if why:
+            raise RuntimeError(os.path.basename(self.path()) + "  —  " + why)
+        v = self.values
+        prefs.put("NewPartLastDir", v["folder"].strip())
+        prefs.put("NewPartLastPrefix", v["prefix"].strip())
+        prefs.put("NewPartBinderMode", v["mode"])
+        linked = v["mode"] == "linked"
+        self.result = api.new_part_from_selection(
+            self.doc, [[o.Name, sub] for o, sub in self.keys], self.path(),
+            label=clean(v["description"]) or None, linked=linked,
+            insert=v["insert"] and not linked)
 
 
 # ----------------------------------------------------------------------
 #  Entry point
 # ----------------------------------------------------------------------
 def new_part_from_selection(doc=None, keys=None):
-    """Ask for the file name, then create the part. `keys` = [(root, sub)];
-    None takes the current selection of the 3D view / tree."""
+    """Ask for the file name (generic panel), then create the part. `keys` =
+    [(root, sub)]; None takes the current selection of the 3D view / tree."""
     import FreeCADGui as Gui
-    QtWidgets, _QtCore = _qt()
+    from . import bridge
     doc = doc or App.ActiveDocument
     if doc is None:
         raise RuntimeError(tr("No active document."))
@@ -433,40 +395,30 @@ def new_part_from_selection(doc=None, keys=None):
     if not keys:
         raise RuntimeError(tr("Select parts, faces, edges or vertices first (or pick a "
                               "selection set)."))
-    dlg = _dialog_class()(doc, len(keys), Gui.getMainWindow())
-    run = getattr(dlg, "exec", None) or dlg.exec_
-    if not run():
+    model = NewPartPanel(doc, keys)
+    if not bridge.show_panel(model) or not model.result:
         return None
-    dlg.remember()
-    path = dlg.path()
-    label = clean(dlg.description.text()) or None
-
-    if dlg.linked():
-        supports = binder_supports(keys)
-        new_doc, body, binder = create_part(path, supports=supports, label=label,
-                                            source=doc.FileName)
-        _log(tr("{file} created, binder linked to {n} object(s).").format(
-            file=os.path.basename(path), n=len(supports)))
+    res = model.result
+    new_doc = App.getDocument(res["document"])
+    body = new_doc.getObject(res["body"])
+    if model.values["mode"] == "linked":
+        _log(tr("{file} created, binder linked to the selection.").format(
+            file=os.path.basename(res["path"])))
     else:
-        shape, failed = copy_shape(keys)
-        if shape is None:
-            raise RuntimeError(tr("The selected elements could not be read: nothing "
-                                  "was created (see the report view)."))
-        new_doc, body, binder = create_part(path, label=label, shape=shape,
-                                            source=doc.FileName)
         _log(tr("{file} created, {n} element(s) copied.").format(
-            file=os.path.basename(path), n=len(keys) - failed))
-        if dlg.insert.isChecked():
-            link, container = insert_into_assembly(doc, body)
-            _log(tr("inserted into “{target}”.").format(
-                target=container.Label if container is not None else doc.Label))
+            file=os.path.basename(res["path"]), n=len(keys)))
+    if res["inserted"]:
+        link = doc.getObject(res["inserted"])
+        parent = link.getParentGeoFeatureGroup() if link is not None else None
+        _log(tr("inserted into “{target}”.").format(
+            target=parent.Label if parent is not None else doc.Label))
 
     # Leave the user in the new part, ready to model
     try:
         Gui.getDocument(new_doc.Name).ActiveView.setActiveObject("pdbody", body)
     except Exception:
         pass
-    if dlg.switch_wb.isChecked():
+    if model.values["switch_wb"]:
         try:
             Gui.activateWorkbench("PartDesignWorkbench")
         except Exception:

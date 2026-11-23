@@ -25,7 +25,6 @@ ALLOWED = {
     "explorer.py": "thumbnail grid of thousands of files: custom QML candidate, postponed",
     "selection_sets.py": "dock with live tree, filters and 3D picking: not migrated yet",
     "align.py": "task panel driving 3D picking and a gizmo: not migrated yet",
-    "new_part.py": "naming dialog (live file name preview, next free number): next to migrate",
     "collisions.py": "modeless result list, a click selects the two parts: needs a row-click "
                      "action in the engine",
 }
@@ -48,4 +47,5 @@ def test_every_hand_built_panel_is_listed_and_justified():
 
 
 def test_migrated_panels_have_no_widget_form():
-    assert "outdated.py" not in hand_built_modules()
+    found = hand_built_modules()
+    assert "outdated.py" not in found and "new_part.py" not in found

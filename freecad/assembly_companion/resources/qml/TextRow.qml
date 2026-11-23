@@ -20,7 +20,7 @@ Item {
         th: row.th
         anchors.left: parent.left
         anchors.verticalCenter: parent.verticalCenter
-        width: Math.min(implicitWidth, row.width * 0.35)
+        width: Math.round(row.width * 0.28)
         text: p.label
     }
     Rectangle {

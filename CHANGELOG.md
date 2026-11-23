@@ -38,7 +38,8 @@ All notable changes to this project are documented here. The format follows
   and shown either in QML (`bridge.py`, `qml_host.py`, `resources/qml/`) or,
   without Qt Quick, with classic widgets built from the same model.
   Preference "Use the QML panels". `tools/i18n.py` also scans the `.qml`
-  files. First panel migrated: "Frozen parts up to date?".
+  files. Panels migrated: "Frozen parts up to date?", "New part from
+  selection" (now created through the API).
 
 ### Fixed
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
