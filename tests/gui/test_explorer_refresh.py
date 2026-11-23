@@ -22,6 +22,7 @@ def touch(path):
 
 @pytest.fixture
 def lib(tmp_path, monkeypatch):
+    import FreeCAD as App
     from freecad.assembly_companion import explorer, library, prefs
     root = tmp_path / "lib"
     for f in FOLDERS:
@@ -32,11 +33,18 @@ def lib(tmp_path, monkeypatch):
     (cache / "thumbs").mkdir(parents=True)
     monkeypatch.setattr(library, "cache_dir", lambda: str(cache))
     monkeypatch.setattr(explorer, "cache_dir", lambda: str(cache))
-    saved = {k: prefs.get(k) for k in ("LocalMasterDir", "ExplorerFullScan")}
+    # raw values: a key the user never set must stay unset (else it would
+    # pin today's default in user.cfg)
+    grp = App.ParamGet(prefs.PARAM_PATH)
+    unset = "<ac-test-unset>"
+    saved = {k: grp.GetString(k, unset) for k in ("LocalMasterDir", "ExplorerFullScan")}
     prefs.put("LocalMasterDir", "")            # no automatic scan at construction
     yield str(root)
     for k, v in saved.items():
-        prefs.put(k, v)
+        if v == unset:
+            grp.RemString(k)
+        else:
+            grp.SetString(k, v)
 
 
 def wait_idle(w, timeout=10.0):

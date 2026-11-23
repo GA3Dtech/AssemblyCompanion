@@ -40,7 +40,7 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
-    "ExplorerFullScan": "always",   # full library rescan when an explorer opens (always / session / manual)
+    "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
     "LeaveAssemblyForSelectionSets": True,
@@ -97,6 +97,33 @@ def _qt():
     except ImportError:
         from PySide6 import QtWidgets
     return QtWidgets
+
+
+def _qtcore():
+    try:
+        from PySide import QtCore
+    except ImportError:
+        from PySide6 import QtCore
+    return QtCore
+
+
+def offer_clear_master_cache(old_master, parent=None):
+    """The library folder changed: offer to delete the cache of the old one
+    (scan and thumbnails), when there is one."""
+    from . import library
+    size = library.master_cache_bytes(old_master)
+    if not size:
+        return False
+    QtWidgets = _qt()
+    r = QtWidgets.QMessageBox.question(
+        parent, tr("Parts library"),
+        tr("The parts library folder changed. Delete the explorer cache of the previous "
+           "folder ({size})?\n{path}").format(size=library.human_size(size), path=old_master),
+        QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+    if r != QtWidgets.QMessageBox.Yes:
+        return False
+    library.clear_cache(old_master)
+    return True
 
 
 class _FolderField(object):
@@ -172,6 +199,19 @@ class PreferencePage(object):
                "FreeCAD refresh their own folder; a full rescan finds files added outside "
                "of FreeCAD."))
         f.addRow(tr("Full library scan:"), self.full_scan)
+        row = QtWidgets.QWidget()
+        h = QtWidgets.QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        self.cache_label = QtWidgets.QLabel()
+        self.cache_label.setTextInteractionFlags(self.cache_label.textInteractionFlags()
+                                                 | _qtcore().Qt.TextSelectableByMouse)
+        h.addWidget(self.cache_label, 1)
+        clear = QtWidgets.QPushButton(tr("Empty the cache"))
+        clear.setToolTip(tr("Delete the saved folder scans and thumbnails of the explorer. "
+                            "They are rebuilt at the next scan."))
+        clear.clicked.connect(self._clear_cache)
+        h.addWidget(clear)
+        f.addRow(tr("Explorer cache:"), row)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -231,6 +271,23 @@ class PreferencePage(object):
         lay.addWidget(g)
         lay.addStretch(1)
 
+    def _show_cache(self):
+        from . import library
+        info = library.cache_info()
+        self.cache_label.setText("%s  (%s)" % (library.human_size(info["bytes"]), info["path"]))
+
+    def _clear_cache(self):
+        from . import library
+        QtWidgets = _qt()
+        r = QtWidgets.QMessageBox.question(
+            self.form, tr("Explorer cache"),
+            tr("Delete the explorer cache? Folder scans and thumbnails are rebuilt at the "
+               "next scan (slower once, on a network share)."),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+        if r == QtWidgets.QMessageBox.Yes:
+            library.clear_cache()
+            self._show_cache()
+
     def loadSettings(self):
         i = self.language.findData(get("Language"))
         self.language.setCurrentIndex(i if i >= 0 else 0)
@@ -238,6 +295,7 @@ class PreferencePage(object):
         self.use_qml.setChecked(get("UseQmlPanels"))
         self.master_dir.edit.setText(get("LocalMasterDir"))
         self.new_dir.edit.setText(get("NewPartDir"))
+        self._show_cache()
         i = self.full_scan.findData(get("ExplorerFullScan"))
         self.full_scan.setCurrentIndex(i if i >= 0 else 0)
         self.prefix.setText(get("NewPartPrefix"))
@@ -259,7 +317,11 @@ class PreferencePage(object):
         put("Language", self.language.currentData())
         put("ShowInAssemblyWorkbench", self.show_in_asm.isChecked())
         put("UseQmlPanels", self.use_qml.isChecked())
-        put("LocalMasterDir", self.master_dir.edit.text().strip())
+        old, new = get("LocalMasterDir"), self.master_dir.edit.text().strip()
+        if old and new and os.path.normcase(os.path.normpath(old)) != \
+                os.path.normcase(os.path.normpath(new)):
+            offer_clear_master_cache(old, self.form)
+        put("LocalMasterDir", new)
         put("NewPartDir", self.new_dir.edit.text().strip())
         put("ExplorerFullScan", self.full_scan.currentData())
         put("NewPartPrefix", self.prefix.text().strip())

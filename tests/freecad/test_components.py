@@ -83,6 +83,9 @@ def test_lightweight_has_no_live_link_and_restores(project):
     res = api.make_lightweight(doc)
     assert sorted(res["lightweight"]) == ["Block", "Pin", "Plate"]
     assert _live_links_to_heavy(doc) == []
+    from freecad.assembly_companion import lightweight
+    skins = [o for o in doc.Objects if lightweight._is_skin(o)]
+    assert skins and all(o.TypeId == "Mesh::Feature" and o.LodPixels > 0 for o in skins)
     skeletons = sorted(r["sub"].split(".")[0] for r in api.diagnose(doc)["references"])
     assert len(set(skeletons)) >= 2                # Skeleton, Skeleton001...: real names
     doc = reopen(doc)

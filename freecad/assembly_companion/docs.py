@@ -28,6 +28,8 @@ document and its 3D view back to the assembly.
 """
 
 import os
+import sys
+import subprocess
 
 import FreeCAD as App
 
@@ -121,3 +123,43 @@ def working_document():
         activate(other)
         return other
     return doc
+
+
+# ----------------------------------------------------------------------
+#  System file manager
+# ----------------------------------------------------------------------
+# Variables a FreeCAD AppImage (or bundle) sets for ITS OWN Python and Qt:
+# inherited by the file manager they break it (Nemo's Python extensions
+# fail on PYTHONHOME and the window never opens).
+_BUNDLE_VARS = ("PYTHONHOME", "PYTHONPATH", "PYTHONNOUSERSITE", "LD_LIBRARY_PATH",
+                "LD_PRELOAD", "QT_QPA_PLATFORM", "QT_PLUGIN_PATH",
+                "QT_QPA_PLATFORM_PLUGIN_PATH", "QML2_IMPORT_PATH", "QML_IMPORT_PATH",
+                "APPDIR", "APPIMAGE", "ARGV0", "OWD", "FONTCONFIG_FILE", "FONTCONFIG_PATH",
+                "SSL_CERT_FILE", "GIT_SSL_CAINFO", "GSETTINGS_SCHEMA_DIR",
+                "GDK_PIXBUF_MODULE_FILE", "GIO_MODULE_DIR")
+
+
+def clean_environment(env=None):
+    """Copy of the environment without the variables of the FreeCAD bundle."""
+    env = dict(os.environ if env is None else env)
+    for k in _BUNDLE_VARS:
+        env.pop(k, None)
+    return env
+
+
+def open_in_file_manager(path):
+    """Show a folder (or file) in the system file manager."""
+    if sys.platform.startswith("win"):
+        os.startfile(path)
+        return True
+    cmd = ["open", path] if sys.platform == "darwin" else ["xdg-open", path]
+    try:
+        subprocess.Popen(cmd, env=clean_environment(), stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, start_new_session=True)
+        return True
+    except OSError:
+        try:
+            from PySide import QtCore, QtGui
+        except ImportError:
+            from PySide6 import QtCore, QtGui
+        return QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))

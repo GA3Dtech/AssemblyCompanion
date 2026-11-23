@@ -26,7 +26,10 @@ group "Lightweight components") holding:
   * Skeleton: a Part::Feature with ONLY the faces / edges / vertices used by
     the joints of the component - the joints are rewritten onto it, so the
     Assembly solver keeps working;
-  * Skin: a Mesh::Feature of the whole component, decimated, for display.
+  * Skin: a Mesh::Feature of the whole component, decimated, for display
+    (a native object: displayed by any FreeCAD, even without this addon).
+    With the addon, a skin carrying LodPixels is drawn as its bounding box
+    when it is small on screen (attach_lod, see below).
 The Link of the component is pointed to that container (shapes are taken in
 the Link's own coordinates, so the component does not move). Instances of
 the same part share one lightweight component; its skeleton holds the
@@ -317,28 +320,128 @@ class ViewProviderSkin(object):
 
 
 def _new_skin(doc, mesh):
-    """Skin object: LOD skin (App::FeaturePython + Python view provider) when
-    the preference LightweightLodPixels is above 0 (default), else - or
-    when that fails - a plain Mesh::Feature."""
+    """Skin object: a native Mesh::Feature, so that the file shows its skins
+    in a FreeCAD without this addon. The level of detail is a dynamic
+    LodPixels property (a plain float, kept by any FreeCAD) used by
+    attach_lod() when the addon is there; 0 or absent = always the mesh.
+    (Skins of version 0.1.0 are App::FeaturePython objects with the Skin /
+    ViewProviderSkin proxies above; they keep working.)"""
     from . import prefs
-    if prefs.get("LightweightLodPixels") <= 0:
-        sn = doc.addObject("Mesh::Feature", "Skin")
-        sn.Mesh = mesh
-        return sn
-    try:
-        import Mesh  # noqa: F401  (registers Mesh::PropertyMeshKernel)
-        sn = doc.addObject("App::FeaturePython", "Skin")
-        Skin(sn)
-        sn.LodPixels = float(prefs.get("LightweightLodPixels"))
-        sn.Mesh = mesh
-        if App.GuiUp:
-            ViewProviderSkin(sn.ViewObject)
-        return sn
-    except Exception as exc:
-        App.Console.PrintLog("Lightweight: LOD skin unavailable (%s)\n" % exc)
-        sn = doc.addObject("Mesh::Feature", "Skin")
-        sn.Mesh = mesh
-        return sn
+    sn = doc.addObject("Mesh::Feature", "Skin")
+    sn.Mesh = mesh
+    pixels = prefs.get("LightweightLodPixels")
+    if pixels > 0:
+        sn.addProperty("App::PropertyFloat", "LodPixels", "Lightweight",
+                       "Below this screen area (pixels) the skin is drawn as a box "
+                       "(0: always the mesh)")
+        sn.LodPixels = float(pixels)
+    return sn
+
+
+# ----------------------------------------------------------------------
+#  Level of detail on native skins (GUI, nothing stored in the document)
+# ----------------------------------------------------------------------
+def attach_lod(obj):
+    """Wrap each display mode of the native mesh view provider of a skin in
+    a SoLevelOfDetail: the mesh when the skin covers more than LodPixels on
+    screen, its bounding box below (projected area, see ViewProviderSkin).
+    Only the scene graph changes; Links share it. Idempotent: called again,
+    it updates the box and the threshold."""
+    if not App.GuiUp or "LodPixels" not in obj.PropertiesList or \
+            not obj.isDerivedFrom("Mesh::Feature"):
+        return False
+    # pivy first: FreeCAD can only hand out Coin nodes (SwitchNode) once the
+    # SWIG wrapper is loaded ("No SWIG wrapped library loaded" otherwise)
+    from pivy import coin
+    vobj = obj.ViewObject
+    sw = getattr(vobj, "SwitchNode", None) if vobj is not None else None
+    if sw is None:
+        return False
+    bb = obj.Mesh.BoundBox
+    far = coin.SoSeparator()
+    far.setName("AC_LodBox")
+    tr_ = coin.SoTranslation()
+    tr_.translation = (bb.Center.x, bb.Center.y, bb.Center.z)
+    box = coin.SoCube()
+    box.width, box.height, box.depth = (max(bb.XLength, 1e-3), max(bb.YLength, 1e-3),
+                                        max(bb.ZLength, 1e-3))
+    far.addChild(tr_)
+    far.addChild(box)
+    pixels = float(obj.LodPixels)
+    for i in range(sw.getNumChildren()):
+        child = sw.getChild(i)
+        if child.isOfType(coin.SoLevelOfDetail.getClassTypeId()) and \
+                child.getName().getString() == "AC_Lod":
+            lod = child
+            lod.replaceChild(1, far)
+        else:
+            lod = coin.SoLevelOfDetail()
+            lod.setName("AC_Lod")
+            lod.addChild(child)            # referenced before it leaves the switch
+            lod.addChild(far)
+            sw.replaceChild(i, lod)
+        lod.screenArea.setValues(0, 1, [pixels if pixels > 0 else 0.0])
+    return True
+
+
+def attach_lod_document(doc):
+    n = 0
+    for o in doc.Objects:
+        try:
+            n += bool(attach_lod(o))
+        except Exception as exc:
+            App.Console.PrintLog("Lightweight LOD: %s (%s)\n" % (o.Name, exc))
+    return n
+
+
+class _LodObserver(object):
+    """Attaches the level of detail to native skins when a document is
+    opened, when a skin is created (also by undo / redo) or changed. Deferred
+    to the event loop: the view provider does not exist yet in these slots."""
+
+    def _later(self, fn):
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide6 import QtCore
+        QtCore.QTimer.singleShot(0, fn)
+
+    def slotFinishRestoreDocument(self, doc):
+        name = doc.Name
+        self._later(lambda: name in App.listDocuments() and
+                    attach_lod_document(App.getDocument(name)))
+
+    def _object_later(self, obj):
+        dn, on = obj.Document.Name, obj.Name
+
+        def run():
+            d = App.listDocuments().get(dn)
+            o = d.getObject(on) if d is not None else None
+            if o is not None:
+                try:
+                    attach_lod(o)
+                except Exception as exc:
+                    App.Console.PrintLog("Lightweight LOD: %s (%s)\n" % (on, exc))
+        self._later(run)
+
+    def slotCreatedObject(self, obj):
+        if obj.isDerivedFrom("Mesh::Feature"):
+            self._object_later(obj)
+
+    def slotChangedObject(self, obj, prop):
+        if prop in ("LodPixels", "Mesh") and "LodPixels" in obj.PropertiesList:
+            self._object_later(obj)
+
+
+_lod_observer = None
+
+
+def install():
+    """Called at GUI startup (init_gui)."""
+    global _lod_observer
+    if _lod_observer is None and App.GuiUp:
+        _lod_observer = _LodObserver()
+        App.addDocumentObserver(_lod_observer)
 
 
 def make(doc, links):
@@ -449,6 +552,8 @@ def make(doc, links):
                         sn.ViewObject.Color = tuple(col.DiffuseColor[:3])
                     else:
                         sn.ViewObject.ShapeAppearance = [col]
+                for sn, _col in skins:
+                    attach_lod(sn)
             except Exception:
                 pass
 

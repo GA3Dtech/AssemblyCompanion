@@ -4,7 +4,7 @@
   <description>Workshop-grade tools for FreeCAD's built-in Assembly: durable assemblies, visual parts library, selection sets.</description>
   <version>0.1.0</version>
   <date>2026-11-20</date>
-  <maintainer email="maintainer@example.invalid">GA3Dtech</maintainer>
+  <maintainer email="ga3d.tech2021+AssemblyCompanion@gmail.com">GA3Dtech</maintainer>
   <author>GA3Dtech</author>
   <license file="LICENSE">LGPL-2.1-or-later</license>
   <url type="repository" branch="main">https://github.com/GA3Dtech/AssemblyCompanion</url>

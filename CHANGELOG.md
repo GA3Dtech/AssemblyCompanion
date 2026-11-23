@@ -32,7 +32,7 @@ All notable changes to this project are documented here. The format follows
   FreeCAD under the library refresh their own folder; "Refresh all" and every
   refresh rebuild only the folders that changed (scroll and filter kept).
   New preference "Full library scan" (every opening / once per session /
-  only on demand). Scan logic in `library.py`; `api.scan_library` and
+  only on demand, default once per session). Scan logic in `library.py`; `api.scan_library` and
   `api.list_library`; benchmark `tools/bench_library.py`.
 
 - Generic panels: a panel is described once as a model (`panel_model.py`)
@@ -43,7 +43,14 @@ All notable changes to this project are documented here. The format follows
   selection" (now created through the API), "Check collisions" results
   (modeless, a click on a row selects the two parts).
 
+- Explorer cache: its size and location on the preference page, with an
+  "Empty the cache" button; changing the parts library folder offers to
+  delete the cache of the previous folder.
+
 ### Fixed
+- Explorer: folders open again in the file manager with a FreeCAD AppImage
+  (its PYTHONHOME was inherited and made Nemo fail): the file manager is
+  started without the bundle's variables.
 - Lightweight components: restoring finds the source file next to the
   assembly when the project folder was moved or copied to another computer
   (only the stored absolute path was tried).
@@ -51,6 +58,9 @@ All notable changes to this project are documented here. The format follows
   is reported broken.
 
 ### Changed
+- Lightweight components: skins are native `Mesh::Feature` objects, displayed
+  by a FreeCAD without the addon; the level of detail (box when small on
+  screen) is attached at runtime by the addon. Files of 0.1.0 keep working.
 - Minimum FreeCAD version: 1.1 (was 1.0).
 - Explorer: the "Scan" button is now "Refresh all".
 - The version is read from `package.xml` only (`version.py`); the unused

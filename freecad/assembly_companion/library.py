@@ -174,6 +174,11 @@ def cache_key(*parts):
     return hashlib.sha1("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
 
 
+def thumb_key(path, mtime, size):
+    """Name (without extension) of the cached thumbnail of a file version."""
+    return cache_key(os.path.normcase(path), mtime, size)
+
+
 def _scan_cache_file(master):
     return os.path.join(cache_dir(), "scan_%s.json" % cache_key(os.path.normcase(master)))
 
@@ -193,3 +198,77 @@ def save_scan_cache(master, scan):
             json.dump(scan, fh)
     except Exception:
         pass
+
+
+def _tree_size(path):
+    total, count = 0, 0
+    for dirpath, _dirs, files in os.walk(path):
+        for f in files:
+            try:
+                total += os.path.getsize(os.path.join(dirpath, f))
+                count += 1
+            except OSError:
+                pass
+    return total, count
+
+
+def cache_info():
+    """{"path", "bytes", "files"} of the explorer disk cache."""
+    path = cache_dir()
+    size, count = _tree_size(path)
+    return {"path": path, "bytes": size, "files": count}
+
+
+def master_cache_bytes(master):
+    """Disk space of the cached scan and thumbnails of one master folder."""
+    scan = load_scan_cache(master)
+    if scan is None:
+        return 0
+    thumbs = os.path.join(cache_dir(), "thumbs")
+    total = os.path.getsize(_scan_cache_file(master))
+    for files in scan.values():
+        for path, mtime, size in files:
+            for ext in (".png", ".none"):
+                f = os.path.join(thumbs, thumb_key(path, mtime, size) + ext)
+                if os.path.exists(f):
+                    total += os.path.getsize(f)
+    return total
+
+
+def clear_cache(master=None):
+    """Delete the cache of one master folder (its scan and the thumbnails of
+    the files it lists), or the whole cache when master is None. Returns the
+    bytes freed. Only rebuilds cost: the next scan reads the folder and
+    unzips the thumbnails again."""
+    root = cache_dir()
+    if master is None:
+        size, _count = _tree_size(root)
+        for dirpath, _dirs, files in os.walk(root):
+            for f in files:
+                try:
+                    os.remove(os.path.join(dirpath, f))
+                except OSError:
+                    pass
+        return size
+    freed = master_cache_bytes(master)
+    scan = load_scan_cache(master) or {}
+    thumbs = os.path.join(root, "thumbs")
+    for files in scan.values():
+        for path, mtime, size in files:
+            for ext in (".png", ".none"):
+                try:
+                    os.remove(os.path.join(thumbs, thumb_key(path, mtime, size) + ext))
+                except OSError:
+                    pass
+    try:
+        os.remove(_scan_cache_file(master))
+    except OSError:
+        pass
+    return freed
+
+
+def human_size(n):
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return ("%d %s" if unit == "B" else "%.1f %s") % (n, unit)
+        n /= 1024.0

@@ -142,16 +142,20 @@ def test_only_expected_proxies_missing(vanilla_report, produced):
     assert not unexpected
 
 
-@pytest.mark.xfail(reason="LOD skins are App::FeaturePython with a Python view provider: "
-                          "without the addon their mesh is kept but NOT displayed "
-                          "(skeletons only). Proposed fix in the report: also store a "
-                          "native Mesh::Feature, needs a format decision.", strict=False)
 def test_lightweight_skins_displayable_without_addon(vanilla_report):
+    """Skins made by the current code are native Mesh::Feature objects: a
+    FreeCAD without the addon draws them. (The 0.1.0 legacy files keep their
+    App::FeaturePython skins: mesh kept, not drawn without the addon.)"""
+    skins = 0
     for f, entry in vanilla_report["files"].items():
+        if "legacy" in f:
+            continue
         for name, o in entry["objects"].items():
-            if o["type"] == "App::FeaturePython" and o.get("facets", 0) > 0 and \
-                    o.get("proxy") is None:
-                pytest.fail("skin %s of %s has no view provider without the addon" % (name, f))
+            if o.get("facets", 0) > 0:
+                assert o["type"] == "Mesh::Feature", \
+                    "skin %s of %s is %s" % (name, os.path.basename(f), o["type"])
+                skins += 1
+    assert skins > 0
 
 
 LEGACY_COMMIT = "3e793b6"       # last commit of version 0.1.0 on main
