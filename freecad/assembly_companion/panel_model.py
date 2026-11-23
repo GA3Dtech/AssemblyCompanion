@@ -37,6 +37,8 @@ Parameter kinds:
   number, int, bool, choice, color, vector, path, text, list, note
 A "list" is a table of rows with check boxes: its value is the list of the
 checked row ids; rows are {"id", "cells": [...], "checked", "enabled"}.
+With checkable=False it has no check boxes and a click on a row calls
+row_clicked(name, row_id) (e.g. select the objects of that row).
 """
 
 KINDS = ("number", "int", "bool", "choice", "color", "vector", "path", "text", "list",
@@ -50,7 +52,7 @@ class Param(object):
 
     def __init__(self, name, label="", kind="text", default=None, section="", tip="",
                  min=0.0, max=100.0, step=1.0, decimals=2, unit="", options=(),
-                 columns=(), rows=(), mode="dir", filter="", placeholder=""):
+                 columns=(), rows=(), mode="dir", filter="", placeholder="", checkable=True):
         if kind not in KINDS:
             raise ValueError("unknown parameter kind: %s" % kind)
         self.name, self.label, self.kind = name, label, kind
@@ -60,6 +62,7 @@ class Param(object):
         self.columns = list(columns)
         self.rows = [dict(r) for r in rows]
         self.mode, self.filter, self.placeholder = mode, filter, placeholder
+        self.checkable = checkable
         if default is None:
             default = self._empty()
         self.default = default
@@ -100,7 +103,8 @@ class Param(object):
                 "options": [o[0] for o in self.options],
                 "optionLabels": [o[1] for o in self.options],
                 "columns": list(self.columns), "rows": [dict(r) for r in self.rows],
-                "mode": self.mode, "filter": self.filter, "placeholder": self.placeholder}
+                "mode": self.mode, "filter": self.filter, "placeholder": self.placeholder,
+                "checkable": self.checkable}
 
 
 class Action(object):
@@ -205,6 +209,9 @@ class PanelModel(object):
     # --- to override ---------------------------------------------------
     def changed(self, name):
         pass
+
+    def row_clicked(self, name, row_id):
+        """A row of a non-checkable list was clicked."""
 
     def trigger(self, name):
         raise NotImplementedError(name)

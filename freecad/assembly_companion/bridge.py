@@ -135,6 +135,15 @@ class Bridge(QtCore.QObject):
         self.model.set_row_checked(name, row_id, checked)
         self.refresh()
 
+    @QtCore.Slot(str, str)
+    def rowClicked(self, name, row_id):
+        try:
+            self.model.row_clicked(name, row_id)
+            self.model.error = ""
+        except Exception as exc:
+            self.model.error = str(exc)
+        self.refresh()
+
     @QtCore.Slot(str)
     def trigger(self, name):
         if name == "__cancel__":
@@ -280,7 +289,9 @@ class WidgetForm(QtWidgets.QWidget):
             w.row_items = {}
             for r in p["rows"]:
                 it = QtWidgets.QTreeWidgetItem([str(c) for c in r["cells"]])
-                if r.get("enabled", True):
+                if not p["checkable"]:
+                    it.setFlags(it.flags() & ~QtCore.Qt.ItemIsUserCheckable)
+                elif r.get("enabled", True):
                     it.setFlags(it.flags() | QtCore.Qt.ItemIsUserCheckable)
                     it.setCheckState(0, QtCore.Qt.Unchecked)
                 else:
@@ -297,6 +308,14 @@ class WidgetForm(QtWidgets.QWidget):
                     if item is it:
                         b.setRowChecked(name, rid, it.checkState(0) == QtCore.Qt.Checked)
             w.itemChanged.connect(item_changed)
+
+            def item_clicked(it, _col=0):
+                if p["checkable"]:
+                    return
+                for rid, item in w.row_items.items():
+                    if item is it:
+                        b.rowClicked(name, rid)
+            w.itemClicked.connect(item_clicked)
         else:                                       # note
             w = QtWidgets.QLabel()
             w.setWordWrap(True)
@@ -390,12 +409,23 @@ class PanelDialog(QtWidgets.QDialog):
         return bool(run())
 
 
-def show_panel(model, parent=None):
-    """Show `model` in a modal dialog; True when accepted."""
+_modeless = []          # open modeless panels (kept alive until closed)
+
+
+def show_panel(model, parent=None, modal=True):
+    """Show `model` in a dialog. Modal: returns True when accepted.
+    Modeless: returns the dialog at once (the user keeps working)."""
     if parent is None:
         try:
             import FreeCADGui as Gui
             parent = Gui.getMainWindow()
         except Exception:
             parent = None
-    return PanelDialog(model, parent).run()
+    dlg = PanelDialog(model, parent)
+    if modal:
+        return dlg.run()
+    dlg.setAttribute(QtCore.Qt.WA_DeleteOnClose)
+    _modeless.append(dlg)
+    dlg.finished.connect(lambda *_a: _modeless.remove(dlg) if dlg in _modeless else None)
+    dlg.show()
+    return dlg

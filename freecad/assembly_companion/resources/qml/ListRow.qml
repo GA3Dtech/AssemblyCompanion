@@ -6,13 +6,15 @@
 import QtQuick 2.15
 
 // "list": table of rows with a check box each; the value is the list of
-// checked row ids. Rows that are not enabled have no check box.
+// checked row ids. Rows that are not enabled have no check box. Not
+// checkable: no check boxes, a click on a row calls bridge.rowClicked.
 Item {
     id: row
     property var p
     property var th
     property var checked: bridge.values[p.name] || []
-    property real checkW: Math.round(26 * th.s)
+    property real checkW: p.checkable ? Math.round(26 * th.s) : Math.round(6 * th.s)
+    property string current: ""
     property real colW: (width - checkW) / Math.max(1, p.columns.length)
     property real rowH: Math.round(24 * th.s)
     implicitHeight: header.height + Math.min(Math.max(p.rows.length, 3), 12) * rowH + 4
@@ -46,11 +48,11 @@ Item {
         delegate: Rectangle {
             width: list.width
             height: row.rowH
-            color: index % 2 ? th.card : th.window
+            color: row.current === modelData.id ? th.line : (index % 2 ? th.card : th.window)
             property bool on: row.checked.indexOf(modelData.id) >= 0
             property bool enabled_: modelData.enabled !== false
             Rectangle {
-                visible: parent.enabled_
+                visible: p.checkable && parent.enabled_
                 x: Math.round(5 * th.s)
                 anchors.verticalCenter: parent.verticalCenter
                 width: Math.round(16 * th.s); height: width; radius: 3
@@ -77,7 +79,14 @@ Item {
             MouseArea {
                 anchors.fill: parent
                 enabled: parent.enabled_
-                onClicked: bridge.setRowChecked(p.name, modelData.id, !parent.on)
+                onClicked: {
+                    if (p.checkable) {
+                        bridge.setRowChecked(p.name, modelData.id, !parent.on)
+                    } else {
+                        row.current = modelData.id
+                        bridge.rowClicked(p.name, modelData.id)
+                    }
+                }
             }
         }
     }

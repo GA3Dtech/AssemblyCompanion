@@ -39,7 +39,8 @@ All notable changes to this project are documented here. The format follows
   without Qt Quick, with classic widgets built from the same model.
   Preference "Use the QML panels". `tools/i18n.py` also scans the `.qml`
   files. Panels migrated: "Frozen parts up to date?", "New part from
-  selection" (now created through the API).
+  selection" (now created through the API), "Check collisions" results
+  (modeless, a click on a row selects the two parts).
 
 ### Fixed
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)

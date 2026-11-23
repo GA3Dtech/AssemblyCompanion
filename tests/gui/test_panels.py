@@ -47,11 +47,13 @@ def all_kinds_model():
 def panel_models():
     """Every panel model of the workbench, on a minimal document."""
     import FreeCAD as App
-    from freecad.assembly_companion import new_part, outdated
+    from freecad.assembly_companion import collisions, new_part, outdated
     doc = App.newDocument("ac_panels")
     box = doc.addObject("Part::Box", "Box")
+    items = [("Box.", "Box"), ("Box001.", "Box001")]
     return doc, [all_kinds_model(), outdated.OutdatedPanel(doc),
-                 new_part.NewPartPanel(doc, [(box, "Face6")])]
+                 new_part.NewPartPanel(doc, [(box, "Face6")]),
+                 collisions.CollisionsPanel(doc, items, [(0, 1, 12.5, None)])]
 
 
 def item_names(item):
@@ -171,3 +173,32 @@ def test_widget_form_edits_the_model(monkeypatch):
         assert m.ran == ["go"]
     finally:
         dlg.deleteLater()
+
+
+def test_row_click_list_in_both_interfaces(monkeypatch):
+    from freecad.assembly_companion import bridge, panel_model as pm, qml_host
+
+    class Clicks(pm.PanelModel):
+        def __init__(self):
+            super().__init__()
+            self.clicked = []
+            self.add(pm.Param("l", kind="list", checkable=False, columns=["A"],
+                              rows=[{"id": "1", "cells": ["x"]}, {"id": "2", "cells": ["y"]}]))
+
+        def row_clicked(self, name, row_id):
+            self.clicked.append(row_id)
+
+    monkeypatch.setattr(qml_host, "forced_off", True)
+    m = Clicks()
+    dlg = bridge.PanelDialog(m)
+    tree = dlg.form.editors["l"][1]
+    tree.itemClicked.emit(tree.row_items["2"], 0)
+    assert m.clicked == ["2"] and m.get("l") == []
+    dlg.deleteLater()
+    monkeypatch.setattr(qml_host, "forced_off", False)
+    if qml_host.quick_usable():
+        q = bridge.PanelDialog(Clicks(), qml=True)
+        assert q.is_qml and q.form.qml_warnings == []
+        q.bridge.rowClicked("l", "1")
+        assert q.model.clicked == ["1"]
+        q.deleteLater()

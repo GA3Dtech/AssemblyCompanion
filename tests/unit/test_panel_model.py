@@ -96,3 +96,20 @@ def test_actions():
 def test_unknown_kind():
     with pytest.raises(ValueError):
         pm.Param("x", kind="slider")
+
+
+def test_row_click_list():
+    class Clicks(pm.PanelModel):
+        def __init__(self):
+            super().__init__()
+            self.clicked = []
+            self.add(pm.Param("l", kind="list", checkable=False,
+                              rows=[{"id": "a", "cells": ["A"], "checked": True}]))
+
+        def row_clicked(self, name, row_id):
+            self.clicked.append((name, row_id))
+
+    m = Clicks()
+    assert m.param("l").public()["checkable"] is False
+    m.row_clicked("l", "a")
+    assert m.clicked == [("l", "a")]

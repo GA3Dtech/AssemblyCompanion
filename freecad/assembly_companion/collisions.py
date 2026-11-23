@@ -40,6 +40,7 @@ import re
 import FreeCAD as App
 
 from . import freeze
+from . import panel_model
 from .i18n import tr
 
 RESULT_NAME = "AC_Collisions"
@@ -185,56 +186,53 @@ def check(doc=None):
     return found
 
 
-def _dialog(parent, doc, items, found):
-    import FreeCADGui as Gui
-    from . import selection_sets as ss
-    try:
-        from PySide import QtWidgets
-    except ImportError:
-        from PySide6 import QtWidgets
-    dlg = QtWidgets.QDialog(parent)
-    dlg.setWindowTitle(tr("Check collisions"))
-    dlg.resize(760, 380)
-    lay = QtWidgets.QVBoxLayout(dlg)
-    lay.addWidget(QtWidgets.QLabel(
-        tr("{n} interference(s) between {p} parts. Click a line to select the two "
-           "parts; the overlapping volumes are shown in red (object “Collisions”).")
-        .format(n=len(found), p=len(items)) if found else
-        tr("No interference between the {p} parts.").format(p=len(items))))
-    tree = QtWidgets.QTreeWidget()
-    tree.setHeaderLabels([tr("Part A"), tr("Part B"), tr("Volume (mm³)")])
-    tree.setRootIsDecorated(False)
-    for i, j, vol, _c in sorted(found, key=lambda f: -f[2]):
-        it = QtWidgets.QTreeWidgetItem([items[i][1], items[j][1], "%.3f" % vol])
-        it.setData(0, 256, (items[i][0], items[j][0]))       # 256 = Qt.UserRole
-        tree.addTopLevelItem(it)
-    for c in range(3):
-        tree.resizeColumnToContents(c)
+class CollisionsPanel(panel_model.PanelModel):
+    """Result of the check: one row per interference, a click selects the
+    two parts; "Remove the red volumes" deletes the result object."""
 
-    def select(item, _col=0):
+    width, height = 760, 400
+
+    def __init__(self, doc, items, found):
+        super().__init__()
+        self.doc = doc
+        self.title = tr("Check collisions")
+        self.cancel_label = tr("Close")
+        self.hint = tr("{n} interference(s) between {p} parts. Click a line to select the "
+                       "two parts; the overlapping volumes are shown in red (object "
+                       "“Collisions”).").format(n=len(found), p=len(items)) if found else \
+            tr("No interference between the {p} parts.").format(p=len(items))
+        self.pairs = {}
+        rows = []
+        for k, (i, j, vol, _c) in enumerate(sorted(found, key=lambda f: -f[2])):
+            self.pairs[str(k)] = (items[i][0], items[j][0])
+            rows.append({"id": str(k), "cells": [items[i][1], items[j][1], "%.3f" % vol]})
+        self.add(panel_model.Param("pairs", kind="list", checkable=False, rows=rows,
+                                   columns=[tr("Part A"), tr("Part B"), tr("Volume (mm³)")]))
+        if found:
+            self.action(panel_model.Action("remove", tr("Remove the red volumes")))
+
+    def row_clicked(self, name, row_id):
+        import FreeCADGui as Gui
+        from . import selection_sets as ss
         Gui.Selection.clearSelection()
-        for k in item.data(0, 256):
-            r, s = ss.split_key(k)
+        for k in self.pairs.get(row_id, ()):
+            r, sub = ss.split_key(k)
             try:
-                Gui.Selection.addSelection(doc.Name, r, s)
+                Gui.Selection.addSelection(self.doc.Name, r, sub)
             except Exception:
                 pass
-    tree.itemClicked.connect(select)
-    lay.addWidget(tree, 1)
-    bb = QtWidgets.QDialogButtonBox()
-    rm = bb.addButton(tr("Remove the red volumes"), QtWidgets.QDialogButtonBox.ResetRole)
-    bb.addButton(QtWidgets.QDialogButtonBox.Close)
-    bb.rejected.connect(dlg.reject)
 
-    def remove():
-        if doc.getObject(RESULT_NAME) is not None:
-            doc.removeObject(RESULT_NAME)
-            doc.recompute()
-        rm.setEnabled(False)
-    rm.clicked.connect(remove)
-    rm.setEnabled(bool(found))
-    lay.addWidget(bb)
-    dlg.setModal(False)
-    dlg.show()
-    # keep a reference, the dialog is modeless
-    Gui.AssemblyCompanionCollisionsDialog = dlg
+    def trigger(self, name):
+        if self.doc.getObject(RESULT_NAME) is not None:
+            self.doc.openTransaction(tr("Remove the red volumes"))
+            try:
+                self.doc.removeObject(RESULT_NAME)
+                self.doc.recompute()
+            finally:
+                self.doc.commitTransaction()
+
+
+def _dialog(parent, doc, items, found):
+    """Modeless result panel (QML or widgets, see bridge.py)."""
+    from . import bridge
+    return bridge.show_panel(CollisionsPanel(doc, items, found), parent, modal=False)
