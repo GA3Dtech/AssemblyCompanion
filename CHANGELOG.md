@@ -44,6 +44,9 @@ All notable changes to this project are documented here. The format follows
   (modeless, a click on a row selects the two parts).
 
 ### Fixed
+- Explorer: folders open again in the file manager with a FreeCAD AppImage
+  (its PYTHONHOME was inherited and made Nemo fail): the file manager is
+  started without the bundle's variables.
 - Lightweight components: restoring finds the source file next to the
   assembly when the project folder was moved or copied to another computer
   (only the stored absolute path was tried).

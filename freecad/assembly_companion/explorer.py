@@ -860,7 +860,7 @@ class ExplorerWidget(QtWidgets.QWidget):
                 tr("Cannot open\n{path}\n{error}").format(path=path, error=e))
 
     def open_in_os(self, path):
-        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(path))
+        docs.open_in_file_manager(path)
 
     def closeEvent(self, event):
         self._stop_loading()
