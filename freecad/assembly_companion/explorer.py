@@ -153,7 +153,7 @@ def load_thumbnail(cdir, path, mtime, size):
     """Return a small QImage for the file, or None. Uses the local disk cache;
     the .FCStd is unzipped only when it changed since last time. Files without
     thumbnail get a '.none' marker so they are not unzipped again."""
-    k = _key(os.path.normcase(path), mtime, size)
+    k = library.thumb_key(path, mtime, size)
     png = os.path.join(cdir, "thumbs", k + ".png")
     none = os.path.join(cdir, "thumbs", k + ".none")
     if os.path.exists(png):
@@ -526,6 +526,10 @@ class ExplorerWidget(QtWidgets.QWidget):
         are refreshed one folder at a time anyway."""
         master = os.path.normpath(self.path_edit.text().strip()) \
             if self.path_edit.text().strip() else ""
+        old = get_saved_dir()
+        if master and old and os.path.isdir(master) and \
+                library.norm(old) != library.norm(master):
+            prefs.offer_clear_master_cache(old, self)
         set_saved_dir(master)
         if not master or not os.path.isdir(master):
             self.master = None

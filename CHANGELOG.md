@@ -43,6 +43,10 @@ All notable changes to this project are documented here. The format follows
   selection" (now created through the API), "Check collisions" results
   (modeless, a click on a row selects the two parts).
 
+- Explorer cache: its size and location on the preference page, with an
+  "Empty the cache" button; changing the parts library folder offers to
+  delete the cache of the previous folder.
+
 ### Fixed
 - Explorer: folders open again in the file manager with a FreeCAD AppImage
   (its PYTHONHOME was inherited and made Nemo fail): the file manager is

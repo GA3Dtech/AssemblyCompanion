@@ -231,3 +231,36 @@ def test_slow_full_scan_does_not_override_targeted(tree):
         scan, _changed = library.merge_scan(scan, folder, fut.result(), rec)
     pool.shutdown()
     assert "late.FCStd" in names(scan, a)
+
+
+# --- disk cache: size, clearing one master or everything -----------------
+def test_clear_cache_of_one_master(tmp_path, monkeypatch):
+    cache = tmp_path / "cache"
+    (cache / "thumbs").mkdir(parents=True)
+    monkeypatch.setattr(library, "cache_dir", lambda: str(cache))
+    libs = {}
+    for name in ("old", "new"):
+        root = tmp_path / name
+        touch(str(root / "A" / (name + ".FCStd")))
+        scan = library.scan_master(str(root))
+        library.save_scan_cache(str(root), scan)
+        for files in scan.values():
+            for p, m, s in files:
+                (cache / "thumbs" / (library.thumb_key(p, m, s) + ".png")).write_bytes(b"x" * 100)
+        libs[name] = str(root)
+    assert library.master_cache_bytes(libs["old"]) > 100
+    freed = library.clear_cache(libs["old"])
+    assert freed > 100
+    assert library.load_scan_cache(libs["old"]) is None
+    assert library.load_scan_cache(libs["new"]) is not None
+    assert len(list((cache / "thumbs").iterdir())) == 1           # the new one stays
+    assert library.master_cache_bytes(libs["old"]) == 0
+    info = library.cache_info()
+    assert info["files"] == 2 and info["bytes"] > 100
+    library.clear_cache()
+    assert library.cache_info()["files"] == 0
+
+
+def test_human_size():
+    assert library.human_size(512) == "512 B"
+    assert library.human_size(12 * 1024 * 1024) == "12.0 MB"
