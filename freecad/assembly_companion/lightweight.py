@@ -470,6 +470,20 @@ def make(doc, links):
     return created
 
 
+def source_path(cont, doc):
+    """Source file of a lightweight component, or None: the stored absolute
+    path, then the same file name next to the assembly (project folder moved
+    or copied to another computer, as freeze.chemin_source does)."""
+    candidates = [cont.LWFile]
+    if cont.LWFile and doc is not None and doc.FileName:
+        candidates.append(os.path.join(os.path.dirname(doc.FileName),
+                                       os.path.basename(cont.LWFile)))
+    for path in candidates:
+        if path and os.path.isfile(path):
+            return path
+    return None
+
+
 def restore(doc, links):
     """Point lightweight `links` back to their source object, joints too, and
     freeze them again when they were frozen."""
@@ -479,11 +493,12 @@ def restore(doc, links):
         cont = l.LinkedObject
         if not is_lightweight(cont):
             continue
-        if not cont.LWFile or not os.path.isfile(cont.LWFile):
+        path = source_path(cont, doc)
+        if path is None:
             App.Console.PrintWarning(tr("Lightweight: source of “{name}” not found ({file}).")
                                      .format(name=l.Label, file=cont.LWFile or "?") + "\n")
             continue
-        src_doc = docs.open_source(cont.LWFile, keep=doc)
+        src_doc = docs.open_source(path, keep=doc)
         src = src_doc.getObject(cont.LWObject)
         if src is None:
             App.Console.PrintWarning(tr("Lightweight: object {obj} not found in {file}.")
@@ -582,7 +597,7 @@ def open_source_command(doc=None):
         raise RuntimeError(tr("Select a component of the assembly."))
     t = links[0].LinkedObject
     if is_lightweight(t):
-        path = t.LWFile
+        path = source_path(t, doc)
     else:
         path = _source(t, doc)[0]
     if not path or not os.path.isfile(path):

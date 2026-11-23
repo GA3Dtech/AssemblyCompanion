@@ -99,6 +99,25 @@ def test_lightweight_has_no_live_link_and_restores(project):
     assert api.diagnose(doc)["broken"] == 0
 
 
+def test_lightweight_restores_after_moving_the_project(project):
+    """The stored source path is absolute: once the project folder is moved
+    (or copied to another computer) the source is found next to the
+    assembly."""
+    import shutil
+    api = _api()
+    folder = project("basic")
+    doc = open_doc(os.path.join(folder, "assembly.FCStd"))
+    api.make_lightweight(doc)
+    doc.save()
+    App.closeDocument(doc.Name)
+    moved = folder + "_moved"
+    shutil.move(folder, moved)
+    doc = open_doc(os.path.join(moved, "assembly.FCStd"))
+    r = api.restore_full(doc)
+    assert sorted(r["restored"]) == ["Block", "Pin", "Plate"]
+    assert os.path.dirname(doc.getObject("Plate").LinkedObject.Document.FileName) == moved
+
+
 def test_new_part_detached_and_inserted(project):
     api = _api()
     folder = project("basic")

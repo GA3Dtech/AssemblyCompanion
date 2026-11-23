@@ -44,6 +44,9 @@ All notable changes to this project are documented here. The format follows
   (modeless, a click on a row selects the two parts).
 
 ### Fixed
+- Lightweight components: restoring finds the source file next to the
+  assembly when the project folder was moved or copied to another computer
+  (only the stored absolute path was tried).
 - Diagnostic: a reference to an element that does not exist (e.g. `Face999`)
   is reported broken.
 
