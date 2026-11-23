@@ -49,7 +49,7 @@ When the built-in **Assembly** workbench is active, the Companion tools are avai
 
 ## Preferences and languages
 
-*Edit → Preferences → Assembly Companion*: interface language, parts library folder, working folder and naming defaults for new parts, binder mode, toolbar in the Assembly workbench, freeze on insert, leaving the assembly edit mode for selection sets.
+*Edit → Preferences → Assembly Companion*: interface language, parts library folder, working folder and naming defaults for new parts, binder mode, toolbar in the Assembly workbench, freeze on insert, leaving the assembly edit mode for selection sets, QML or classic panels, full library scan when an explorer opens.
 
 The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
 
@@ -86,6 +86,27 @@ api.archive(doc, "/path/to/assembly_pack.zip")
 App.closeDocument(doc.Name)
 ```
 
+## Tests
+
+Four levels, all run by the GitHub Actions CI with real FreeCAD builds
+(1.0.2 and 26.3):
+
+| Level | Folder | Runs in | What |
+|---|---|---|---|
+| unit | `tests/unit` | plain Python (FreeCAD stand-ins) | naming, CSV, preferences, translations, library scan, panel models, API reference |
+| freecad | `tests/freecad` | `freecadcmd` | every tool through `api.py` on generated fixture files |
+| vanilla | `tests/vanilla` | `freecadcmd` without the addon | files made by the workbench open and solve in a plain FreeCAD, and with the 0.1.0 code |
+| gui | `tests/gui` | FreeCAD GUI (xvfb in CI) | workbench, commands, explorer refresh, QML panels and their widgets fallback |
+
+```bash
+tests/run_all.sh unit
+```
+
+`tests/run_all.sh freecad`, `vanilla` and `all` use a FreeCAD AppImage
+(`FREECAD_APPIMAGE`) with an isolated user folder. Fixture files are rebuilt
+by `tests/fixtures/build_fixtures.py`; `tests/fixtures/legacy/` keeps files
+made by released versions, which must keep opening.
+
 ## Installation
 
 Until it is listed in the Addon Manager: *Edit → Preferences → Addon Manager → Custom repositories*, add `https://github.com/GA3Dtech/AssemblyCompanion` (branch `main`), then install **Assembly Companion** from the Addon Manager and restart FreeCAD.
@@ -100,7 +121,7 @@ Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26
 
 ## Credits and license
 
-The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech).
+The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech). The generic panels (`bridge.py`, `qml_host.py`, `resources/qml/`) adapt code from [ShowRoom](https://github.com/oficinerobotica/ShowRoom) (dtpanels) and [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) (quick_host), both LGPL-2.1-or-later.
 
 Licensed under the **LGPL-2.1-or-later**, like FreeCAD itself. No CLA: contributions are welcome under the same license.
 
