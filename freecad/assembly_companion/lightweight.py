@@ -326,7 +326,7 @@ def _new_skin(doc, mesh):
         sn.Mesh = mesh
         return sn
     try:
-        import Mesh            # registers Mesh::PropertyMeshKernel
+        import Mesh  # noqa: F401  (registers Mesh::PropertyMeshKernel)
         sn = doc.addObject("App::FeaturePython", "Skin")
         Skin(sn)
         sn.LodPixels = float(prefs.get("LightweightLodPixels"))
