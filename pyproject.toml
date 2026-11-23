@@ -1,0 +1,30 @@
+# Tooling configuration only: the workbench itself is installed by copying the
+# folder into FreeCAD's Mod directory (see README.md), not with pip.
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["tests/fixtures/legacy"]
+
+[tool.ruff.lint]
+# Conservative rules: pyflakes, pycodestyle errors / warnings, import order.
+select = ["E", "F", "W", "I"]
+ignore = [
+    "E501",   # long lines exist (long tr() texts, tables); not reformatted wholesale
+    "E731",   # small lambdas assigned to names are used on purpose
+    "E741",   # "l" is used for Links throughout freeze.py
+    "I001",   # import order: FreeCAD modules are imported lazily inside functions
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tools/bench_large.py" = ["F401"]   # Mesh is imported for its side effect
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: pure Python, no FreeCAD",
+    "freecad: needs FreeCAD (run inside freecadcmd)",
+    "gui: needs the FreeCAD GUI (xvfb)",
+    "vanilla: FreeCAD without any addon",
+    "slow: long running",
+]

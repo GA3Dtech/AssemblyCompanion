@@ -29,9 +29,20 @@ selection sets. Not a separate assembly solver. Read `README.md` first;
 | `freecad/assembly_companion/docs.py` | Open source files without changing the active document |
 | `freecad/assembly_companion/i18n.py` | `tr()` and language selection |
 | `freecad/assembly_companion/prefs.py` | All settings (`get`/`put`) and the preference page |
+| `freecad/assembly_companion/api.py` | Public API for scripts, agents and MCP (headless-safe, JSON results); reference `docs/api.md` |
+| `freecad/assembly_companion/errors.py` | Typed exceptions of the API |
+| `freecad/assembly_companion/version.py` | Version read from `package.xml` (single source) |
+| `freecad/assembly_companion/library.py` | Parts library scan (no Qt): `scan_folder`, `merge_scan`, disk caches |
+| `freecad/assembly_companion/panel_model.py` | Panel models (no Qt): typed parameters, sections, actions |
+| `freecad/assembly_companion/bridge.py` | Generic panels: Bridge to the QML, `WidgetForm` fallback, `PanelDialog` / `show_panel` |
+| `freecad/assembly_companion/qml_host.py` | Qt Quick import, OpenGL graphics API, `make_view`, QML or widgets choice |
+| `freecad/assembly_companion/resources/qml/` | Generic QML components (`GenericPanel`, `Section`, one row per parameter kind) |
 | `freecad/assembly_companion/translations/` | `<code>.json` tables English → language |
 | `tools/i18n.py` | Check / update the translation tables |
 | `tools/bench_large.py` | Benchmark of very large assemblies, BREP vs mesh (results in `docs/benchmark.md`) |
+| `tools/bench_library.py` | Benchmark of the library scan, full vs targeted refresh |
+| `tools/api_doc.py` | Writes / checks `docs/api.md` from `api.describe()` |
+| `tests/` | `unit`, `freecad`, `vanilla`, `gui`, fixtures, CI helpers (see Testing) |
 | `freecad/assembly_companion/resources/icons/` | SVG icons |
 | `package.xml` | Addon Manager metadata (version, date, freecadmin) |
 
@@ -105,16 +116,64 @@ FreeCAD restart (or a module reload).
   provider, which does not handle a custom display mode.
 - MCP screenshots refit the view: to check what a zoom level shows, use
   `ActiveView.saveImage(path, w, h, "Current")` and read the image.
-- Must run on FreeCAD 1.0+ (tested on 26.3); Windows network shares are a key
+- Must run on FreeCAD 1.1+ (tested on 1.1 and 26.3); Windows network shares are a key
   use case for the explorer (avoid per-file round trips, keep caches).
+
+## Panels (generic model, QML or widgets)
+
+- A form panel (options, lists, actions) is a model in `panel_model.py`
+  terms, shown by `bridge.show_panel(model)`: QML when the `UseQmlPanels`
+  preference is on and Qt Quick can use OpenGL, otherwise a `WidgetForm`
+  built from the same model. **Never write a panel twice by hand**; when the
+  engine lacks something, add a parameter kind to the engine (model, Bridge,
+  WidgetForm and a QML row together).
+- No business logic in the QML, the widgets or the bridge: the model's
+  actions call `api.py`. The model does not touch the document while the
+  panel is open; the accept action makes one API call (one undo step),
+  Cancel changes nothing.
+- Custom QML only where widgets are clearly worse (long thumbnail grids,
+  overlays on the 3D view), justified in one line in the docstring, with a
+  simpler fallback that keeps the function.
+- Hand-built widget panels left are listed with their reason in
+  `tests/unit/test_panel_review.py`; migrating one removes its entry.
+- QML pitfalls: import Qt Quick lazily from PySide6 / PySide2 (FreeCAD's
+  `PySide` has no QtQuick); ask for OpenGL before the first QQuickWidget
+  (`qml_host.quick_usable`); versioned imports `import QtQuick 2.15` (Qt 5
+  and Qt 6); no QML Popup (Wayland offset); the bridge is parented to the
+  view; never resize the view from a QML binding (QTimer at 0 ms); texts
+  through `i18n.tr("...")`, never `qsTr` (`tools/i18n.py` scans `.qml`).
+  Items created by a `Loader` have no QObject parent: tests walk
+  `childItems()` instead of `findChild`.
 
 ## Testing
 
-No test suite. Verify logic headless with `freecadcmd` (via the FreeCAD MCP
-`execute_code_headless` tool when available): build a small document in the
-script, then exec only the functions under test (modules importing PySide /
-FreeCADGui may not import headless). GUI behaviour must be checked in FreeCAD by
-the user; say so explicitly when it has not been tested.
+Every logic change comes with tests at the right level. Levels:
+
+- `tests/unit` – plain Python with FreeCAD stand-ins (`tests/unit/conftest.py`):
+  `uvx --with pytest pytest -q tests/unit` (or `tests/run_all.sh unit`).
+- `tests/freecad` – inside `freecadcmd`, through `api.py`, on fixtures built
+  by `tests/fixtures/build_fixtures.py`: `tests/run_all.sh freecad`
+  (`FREECAD_APPIMAGE` selects the build; an isolated `FREECAD_USER_HOME` with
+  the repo linked into `Mod`).
+- `tests/vanilla` – files made by the workbench must open, keep their
+  geometry and solve **in a FreeCAD without the addon**, and open with the
+  0.1.0 code. Any new stored object or property must keep that true (only
+  data proxies may be missing); otherwise mark the test `xfail` with the
+  reason and ask the user before changing the stored format.
+- `tests/gui` – inside the FreeCAD GUI: xvfb in CI; locally through the
+  MCP `execute_code` (pytest from `~/.cache/ac_tests/pytest-py313` on
+  `sys.path`, reload the changed modules, delete `test_*` / `conftest*`
+  from `sys.modules` before each run, restore any preference a test or
+  script changes, e.g. `LocalMasterDir`).
+- `python3 tools/i18n.py check` and `python3 tools/api_doc.py --check` must
+  pass; the CI (`.github/workflows/ci.yml`) runs everything on FreeCAD 1.1.4,
+  26.3 and the latest weekly build (allowed to fail: early warning).
+- freecadcmd pitfalls: scripts run with `__name__` = file stem, need an
+  absolute path, must flush stdout before `os._exit`, and may exit 0 on
+  failure (check the JUnit report: `tests/ci/check_junit.py`).
+
+GUI behaviour not covered by `tests/gui` must be checked in FreeCAD by the
+user; say so explicitly when it has not been tested.
 
 ## Releases and git
 

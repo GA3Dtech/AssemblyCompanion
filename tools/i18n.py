@@ -21,6 +21,7 @@ Exit status of 'check' is 1 when something is missing (usable in CI).
 import ast
 import json
 import os
+import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,14 +29,32 @@ PKG = os.path.join(ROOT, "freecad", "assembly_companion")
 TRANS = os.path.join(PKG, "translations")
 
 
+QML_TR = re.compile(r'\bi18n\.tr\(\s*"((?:[^"\\]|\\.)*)"\s*\)')
+
+
+def _qml_texts(path, texts):
+    """QML calls our tr() through the `i18n` context object: i18n.tr("...")."""
+    with open(path, "r", encoding="utf-8") as fh:
+        for n, line in enumerate(fh, 1):
+            for m in QML_TR.finditer(line):
+                text = json.loads('"%s"' % m.group(1))
+                texts.setdefault(text, []).append("%s:%d" % (os.path.relpath(path, ROOT), n))
+            if "i18n.tr(" in line and not QML_TR.search(line):
+                print("warning: i18n.tr() argument is not a literal at %s:%d"
+                      % (os.path.relpath(path, ROOT), n))
+
+
 def source_texts():
     """{English text: [file:line, ...]} of every tr() call, in source order."""
     texts = {}
     for dirpath, _dirs, files in os.walk(PKG):
         for name in sorted(files):
+            path = os.path.join(dirpath, name)
+            if name.endswith(".qml"):
+                _qml_texts(path, texts)
+                continue
             if not name.endswith(".py"):
                 continue
-            path = os.path.join(dirpath, name)
             with open(path, "r", encoding="utf-8") as fh:
                 tree = ast.parse(fh.read(), path)
             for node in ast.walk(tree):

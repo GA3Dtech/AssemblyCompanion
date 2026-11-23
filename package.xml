@@ -16,7 +16,7 @@
       <classname>AssemblyCompanionWorkbench</classname>
       <subdirectory>./</subdirectory>
       <icon>freecad/assembly_companion/resources/icons/AssemblyCompanion.svg</icon>
-      <freecadmin>1.0.0</freecadmin>
+      <freecadmin>1.1.0</freecadmin>
       <tag>assembly</tag>
       <tag>A2plus</tag>
       <tag>library</tag>

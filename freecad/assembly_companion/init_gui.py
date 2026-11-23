@@ -17,7 +17,7 @@ from .i18n import tr
 
 commands.register()
 
-from . import prefs
+from . import prefs  # noqa: E402  (after the commands are registered)
 
 try:
     # The preference dialog looks for an icon named "preferences-<group>"

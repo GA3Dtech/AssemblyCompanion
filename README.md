@@ -40,7 +40,7 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | **Group fasteners with their body** | Moves the screws, nuts, inserts… of the Fasteners workbench into the Std_Part of the body they are attached to, creating a Std_Part around a body that has none. The Part becomes a complete component (inserted and frozen with its fasteners), and the fasteners stay in their holes when the Part is moved — at the document root they drift as soon as the Part is not at the origin. |
 | **New part from selection** | Creates a new part file named `PREFIX_001a_Description.FCStd` (working folder, free prefix, next free number proposed, revision, description) whose Body holds a SubShapeBinder of the selected faces, edges or parts — or of a selection set. By default the binder is an independent copy, so the new part can be inserted into the assembly, exactly in place, without making the files depend on each other; a linked binder that follows the assembly is also available. |
 | **Replace component** | Points the selected component to an object of another file — the next revision of its source file (`AB_001a` → `AB_001b`) is proposed automatically, the object with the same internal name is preselected — keeping its place and joints. Frozen components are frozen again from the new file; other instances of the same part can be replaced in the same step. |
-| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). |
+| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). Right-click a folder header to refresh only that folder; files saved from FreeCAD refresh their own folder. |
 | **Align elements** | Place a body by clicking an element on it, then on another body; flip, offset, rotation, optional gizmo. Ideal for static assemblies in a Std_Part. |
 | **Check collisions** | Splits the assembly into elementary parts (through Links, frozen or linked Parts, sub-assemblies) and intersects the pairs whose bounding boxes overlap: interferences are listed (a click selects the two parts) and shown as red volumes. Fasteners can be left out. |
 | **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference, new part from the set. With **Keep faces, edges and vertices** checked, a set stores the chosen elements themselves (marked ◆) and selects them again; **Shape for TechDraw** turns a set into a SubShapeBinder of only those elements, to draw just what matters (no screw threads or cosmetic details). Opening the panel leaves the assembly edit mode so faces, edges and vertices can be picked. Made for exploded STEP files and large assemblies. |
@@ -49,9 +49,63 @@ When the built-in **Assembly** workbench is active, the Companion tools are avai
 
 ## Preferences and languages
 
-*Edit → Preferences → Assembly Companion*: interface language, parts library folder, working folder and naming defaults for new parts, binder mode, toolbar in the Assembly workbench, freeze on insert, leaving the assembly edit mode for selection sets.
+*Edit → Preferences → Assembly Companion*: interface language, parts library folder, working folder and naming defaults for new parts, binder mode, toolbar in the Assembly workbench, freeze on insert, leaving the assembly edit mode for selection sets, QML or classic panels, full library scan when an explorer opens.
 
 The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
+
+## API for agents (MCP)
+
+`freecad/assembly_companion/api.py` exposes every tool as a plain function
+for scripts, AI agents and the
+[FreeCAD MCP server](https://github.com/neka-nat/freecad-mcp): no dialog,
+the document passed explicitly, JSON-serialisable results, typed errors
+(`errors.py`) and `dry_run=True` on the functions that change a document.
+`api.describe()` returns the catalogue; the reference is
+[docs/api.md](docs/api.md).
+
+In the running FreeCAD (MCP `execute_code`):
+
+```python
+from freecad.assembly_companion import api
+print(api.list_components("Assembly"))
+print(api.freeze_parts("Assembly", dry_run=True))   # what would be frozen
+print(api.diagnose("Assembly")["broken"])
+```
+
+Batch on a file without the GUI (MCP `execute_code_headless`, or
+`freecadcmd`): bill of materials, collisions, archive, diagnostic.
+
+```python
+import FreeCAD as App
+from freecad.assembly_companion import api
+doc = App.openDocument("/path/to/assembly.FCStd")
+api.export_bom_csv(doc, "/path/to/assembly_BOM.csv")
+print(api.check_collisions(doc))
+print(api.diagnose(doc)["broken"])
+api.archive(doc, "/path/to/assembly_pack.zip")
+App.closeDocument(doc.Name)
+```
+
+## Tests
+
+Four levels, all run by the GitHub Actions CI with real FreeCAD builds
+(1.1.4, 26.3 and the latest weekly development build):
+
+| Level | Folder | Runs in | What |
+|---|---|---|---|
+| unit | `tests/unit` | plain Python (FreeCAD stand-ins) | naming, CSV, preferences, translations, library scan, panel models, API reference |
+| freecad | `tests/freecad` | `freecadcmd` | every tool through `api.py` on generated fixture files |
+| vanilla | `tests/vanilla` | `freecadcmd` without the addon | files made by the workbench open and solve in a plain FreeCAD, and with the 0.1.0 code |
+| gui | `tests/gui` | FreeCAD GUI (xvfb in CI) | workbench, commands, explorer refresh, QML panels and their widgets fallback |
+
+```bash
+tests/run_all.sh unit
+```
+
+`tests/run_all.sh freecad`, `vanilla` and `all` use a FreeCAD AppImage
+(`FREECAD_APPIMAGE`) with an isolated user folder. Fixture files are rebuilt
+by `tests/fixtures/build_fixtures.py`; `tests/fixtures/legacy/` keeps files
+made by released versions, which must keep opening.
 
 ## Installation
 
@@ -59,7 +113,7 @@ Until it is listed in the Addon Manager: *Edit → Preferences → Addon Manager
 
 Manual install: copy this folder into your FreeCAD `Mod` directory.
 
-Requires FreeCAD 1.0 or newer.
+Requires FreeCAD 1.1 or newer.
 
 ## Status
 
@@ -67,7 +121,7 @@ Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26
 
 ## Credits and license
 
-The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech).
+The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech). The generic panels (`bridge.py`, `qml_host.py`, `resources/qml/`) adapt code from [ShowRoom](https://github.com/oficinerobotica/ShowRoom) (dtpanels) and [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) (quick_host), both LGPL-2.1-or-later.
 
 Licensed under the **LGPL-2.1-or-later**, like FreeCAD itself. No CLA: contributions are welcome under the same license.
 

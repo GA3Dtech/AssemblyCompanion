@@ -1,0 +1,4 @@
+quantity,part,source_file,state
+1,Block,block.FCStd,linked
+1,Pin,pin.FCStd,linked
+1,Plate,plate.FCStd,linked

@@ -37,6 +37,7 @@ import datetime
 import FreeCAD as App
 
 from . import freeze
+from . import panel_model
 from .i18n import tr
 
 OUTDATED, UP_TO_DATE, MISSING = "outdated", "ok", "missing"
@@ -102,25 +103,57 @@ def refreeze(doc, copies):
 
 
 # ----------------------------------------------------------------------
-#  Dialog
+#  Panel (generic model: QML or widgets, see bridge.py)
 # ----------------------------------------------------------------------
-def _qt():
+def _iso_date(text):
     try:
-        from PySide import QtWidgets, QtCore
-    except ImportError:
-        from PySide6 import QtWidgets, QtCore
-    return QtWidgets, QtCore
+        return datetime.datetime.fromisoformat(text).strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return "—"
 
 
-def _date(ts):
-    return datetime.datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M") if ts else "—"
+class OutdatedPanel(panel_model.PanelModel):
+    """Frozen parts and their source file; refreezes the checked ones
+    through api.refreeze_outdated (one undo step)."""
+
+    width, height = 820, 440
+
+    def __init__(self, doc):
+        from . import api
+        super().__init__()
+        self.doc = doc
+        self.title = tr("Frozen parts up to date?")
+        self.cancel_label = tr("Close")
+        rows = api.outdated_parts(doc)
+        labels = {OUTDATED: tr("Out of date"), UP_TO_DATE: tr("Up to date"),
+                  MISSING: tr("Source missing")}
+        n_old = sum(1 for r in rows if r["state"] == OUTDATED)
+        self.hint = tr("{old} frozen part(s) out of date: their source file was saved after "
+                       "they were frozen. Checked parts are refrozen from the saved source "
+                       "file.").format(old=n_old)
+        self.add(panel_model.Param(
+            "parts", kind="list",
+            columns=[tr("Part"), tr("State"), tr("Frozen"), tr("Source saved"),
+                     tr("Source file")],
+            rows=[{"id": r["name"], "checked": r["state"] == OUTDATED,
+                   "enabled": r["state"] != MISSING,
+                   "cells": [r["label"], labels[r["state"]], _iso_date(r["frozen"]),
+                             _iso_date(r["source_saved"]), r["source_file"]]}
+                  for r in rows]))
+        self.action(panel_model.Action("refreeze", tr("Refreeze checked parts"),
+                                       primary=True, accept=True))
+
+    def trigger(self, name):
+        from . import api
+        names = self.get("parts")
+        self.result = api.refreeze_outdated(self.doc, names)["refrozen"] if names else []
+
+
 
 
 def show(doc=None):
-    """Report in a dialog, refreeze the checked parts."""
-    import FreeCADGui as Gui
-    from . import docs
-    QtWidgets, QtCore = _qt()
+    """Report in a panel (QML or widgets), refreeze the checked parts."""
+    from . import bridge, docs
     doc = doc or docs.working_document()
     if doc is None:
         raise RuntimeError(tr("No active document."))
@@ -132,51 +165,10 @@ def show(doc=None):
     App.Console.PrintMessage(tr("Frozen parts: {total}, out of date: {old}, source "
                                 "missing: {missing}.").format(
         total=len(rows), old=n_old, missing=n_missing) + "\n")
-
-    dlg = QtWidgets.QDialog(Gui.getMainWindow())
-    dlg.setWindowTitle(tr("Frozen parts up to date?"))
-    dlg.resize(820, 420)
-    lay = QtWidgets.QVBoxLayout(dlg)
-    lay.addWidget(QtWidgets.QLabel(
-        tr("{old} frozen part(s) out of date: their source file was saved after they "
-           "were frozen. Checked parts are refrozen from the saved source file.")
-        .format(old=n_old)))
-    tree = QtWidgets.QTreeWidget()
-    tree.setHeaderLabels([tr("Part"), tr("State"), tr("Frozen"), tr("Source saved"),
-                          tr("Source file")])
-    tree.setRootIsDecorated(False)
-    items = []
-    for c, path, mtime, state in rows:
-        label = {OUTDATED: tr("Out of date"), UP_TO_DATE: tr("Up to date"),
-                 MISSING: tr("Source missing")}[state]
-        frozen = _frozen_time(c)
-        it = QtWidgets.QTreeWidgetItem([c.FigeLabel or c.Label, label, _date(frozen),
-                                        _date(mtime), path or c.FigeFichier])
-        if state == MISSING:
-            it.setFlags(it.flags() & ~QtCore.Qt.ItemIsUserCheckable)
-        else:
-            it.setCheckState(0, QtCore.Qt.Checked if state == OUTDATED
-                             else QtCore.Qt.Unchecked)
-        tree.addTopLevelItem(it)
-        items.append((it, c, state))
-    for i in range(5):
-        tree.resizeColumnToContents(i)
-    lay.addWidget(tree, 1)
-    bb = QtWidgets.QDialogButtonBox()
-    ok = bb.addButton(tr("Refreeze checked parts"), QtWidgets.QDialogButtonBox.AcceptRole)
-    bb.addButton(QtWidgets.QDialogButtonBox.Close)
-    bb.accepted.connect(dlg.accept)
-    bb.rejected.connect(dlg.reject)
-    lay.addWidget(bb)
-    ok.setEnabled(any(s != MISSING for _i, _c, s in items))
-    run = getattr(dlg, "exec", None) or dlg.exec_
-    if not run():
+    model = OutdatedPanel(doc)
+    if not bridge.show_panel(model) or not model.result:
         return []
-    chosen = [c for it, c, s in items
-              if s != MISSING and it.checkState(0) == QtCore.Qt.Checked]
-    if not chosen:
-        return []
-    done = refreeze(doc, chosen)
     App.Console.PrintMessage(tr("Refreeze: {n} part(s) updated. Run “Check frozen "
-                                "assembly” to verify the joints.").format(n=len(done)) + "\n")
-    return done
+                                "assembly” to verify the joints.").format(n=len(model.result))
+                             + "\n")
+    return [doc.getObject(n) for n in model.result]

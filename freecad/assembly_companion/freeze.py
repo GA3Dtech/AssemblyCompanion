@@ -41,7 +41,7 @@ import Part
 
 from .i18n import tr
 
-VERSION = "1.0"
+from .version import __version__ as VERSION  # single source: package.xml
 GROUPE_COPIES = "Solides_figes"     # group holding the frozen copies
 GROUPE_INUTILES = "Solides_figes_inutilises"   # sub-group: copies no Link uses
 
@@ -500,6 +500,15 @@ def _marque(obj, inutile):
         pass
 
 
+def copies_inutilisees(doc):
+    """Top-level frozen copies / containers no Link of `doc` uses (read only)."""
+    copies = [o for o in doc.Objects if _est_fige(o)
+              and o.getParentGeoFeatureGroup() is None]
+    utilisees = set(l.LinkedObject.Name for l in doc.Objects
+                    if _est_lien(l) and l.LinkedObject is not None)
+    return [c for c in copies if c.Name not in utilisees]
+
+
 def marquer_inutilisees(doc):
     """Frozen copies / containers that no Link of `doc` uses any more (part
     deleted, relinked, replaced...) are moved into the sub-group "Unused" of
@@ -550,12 +559,15 @@ def _chemins_inverses(cont, src):
 
 
 def figer(doc=None, selection=None):
-    """Freeze the given Links (selection) or every external Link (None)."""
+    """Freeze the given Links (selection) or every external Link (None).
+    Returns {"frozen": [Link names], "skipped": [{"name", "reason"}],
+    "refs_updated": n}."""
     doc = doc or App.ActiveDocument
+    result = {"frozen": [], "skipped": [], "refs_updated": 0}
     liens = liens_externes(doc, selection)
     if not liens:
         App.Console.PrintMessage(tr("Freeze: no external link to freeze.") + "\n")
-        return
+        return result
     doc.openTransaction(tr("Freeze components"))
     try:
         for lien in liens:
@@ -571,14 +583,19 @@ def figer(doc=None, selection=None):
                     tr("Freeze: {link} -> {target} ({type}) skipped: only Bodies, "
                        "Part::Features and Parts are supported.").format(
                         link=lien.Label, target=src.Label, type=src.TypeId) + "\n")
+                result["skipped"].append({"name": lien.Name, "reason": "unsupported type " +
+                                          src.TypeId})
                 continue
             App.Console.PrintMessage(
                 tr("Freeze: {name} frozen ({n} references refreshed)").format(
                     name=lien.Label, n=n) + "\n")
+            result["frozen"].append(lien.Name)
+            result["refs_updated"] += n
         marquer_inutilisees(doc)
         doc.recompute()
     finally:
         doc.commitTransaction()
+    return result
 
 
 # --------------------------------------------------------------------------
@@ -589,10 +606,11 @@ def relier(doc=None, selection=None):
     """Point the given frozen Links (selection) or all of them (None) back to
     their source Body. The frozen copy is kept and reused on next freeze."""
     doc = doc or App.ActiveDocument
+    result = {"relinked": [], "missing_source": []}
     liens = liens_figes(doc, selection)
     if not liens:
         App.Console.PrintMessage(tr("Freeze: no frozen link.") + "\n")
-        return
+        return result
     doc.openTransaction(tr("Relink to sources"))
     try:
         for lien in liens:
@@ -603,6 +621,7 @@ def relier(doc=None, selection=None):
                 App.Console.PrintError(
                     tr("Freeze: source not found for {name} ({file})").format(
                         name=lien.Label, file=copie.FigeFichier) + "\n")
+                result["missing_source"].append({"name": lien.Name, "file": copie.FigeFichier})
                 continue
             if _est_conteneur_fige(copie):
                 appliquer_reecriture(lien, nouvelle_cible=src,
@@ -613,10 +632,12 @@ def relier(doc=None, selection=None):
             App.Console.PrintMessage(
                 tr("Freeze: {name} relinked to {doc}#{obj}").format(
                     name=lien.Label, doc=doc_src.Name, obj=src.Name) + "\n")
+            result["relinked"].append(lien.Name)
         marquer_inutilisees(doc)
         doc.recompute()
     finally:
         doc.commitTransaction()
+    return result
 
 
 # --------------------------------------------------------------------------
@@ -787,6 +808,52 @@ def _taille_map(shape):
         return '?'
 
 
+def _reference_ok(base, sub):
+    """True when the reference resolves: the object path exists AND, for an
+    element (Face6...), that element exists on it (getSubObject alone also
+    returns the object for an element number out of range)."""
+    if base is None or '?' in sub:          # '?' = element FreeCAD could not find
+        return False
+    try:
+        if base.getSubObject(sub) is None:
+            return False
+        if decouper_sub(sub)[2]:
+            shape = Part.getShape(base, sub, needSubElement=True)
+            return not shape.isNull()
+        return True
+    except Exception:
+        return False
+
+
+def diagnostic_rows(doc):
+    """Joint references of `doc` as data, without changing the document:
+    [{"joint", "joint_label", "ref", "sub", "ok", "base", "base_file",
+      "target", "target_file"}]."""
+    rows = []
+    for o in doc.Objects:
+        if not hasattr(o, 'JointType'):
+            continue
+        for p in ('Reference1', 'Reference2'):
+            v = getattr(o, p, None)
+            if not v:
+                continue
+            base, subs = v
+            for sub in ([subs] if isinstance(subs, str) else subs):
+                ok = _reference_ok(base, sub)
+                cible = getattr(base, 'LinkedObject', None) if base is not None else None
+                rows.append({
+                    "joint": o.Name, "joint_label": o.Label, "ref": p, "sub": sub,
+                    "ok": bool(ok),
+                    "base": base.Label if base is not None else None,
+                    "base_type": base.TypeId if base is not None else None,
+                    "base_file": base.Document.Label if base is not None else None,
+                    "target": cible.Label if cible is not None else None,
+                    "target_type": cible.TypeId if cible is not None else None,
+                    "target_file": cible.Document.Label if cible is not None else None,
+                })
+    return rows
+
+
 def diagnostic(doc=None):
     """Print, in the report view, the topological history size of each frozen
     copy (must be 0) and whether each joint reference resolves, with the
@@ -800,35 +867,21 @@ def diagnostic(doc=None):
             pr(tr("Copy {label:<30} topological history = {size}  (must be 0)").format(
                 label=c.Label, size=_taille_map(c.Shape)) + "\n")
     n_ok = n_ko = 0
-    for o in doc.Objects:
-        if not hasattr(o, 'JointType'):
-            continue
-        for p in ('Reference1', 'Reference2'):
-            v = getattr(o, p, None)
-            if not v:
-                continue
-            base, subs = v
-            for sub in ([subs] if isinstance(subs, str) else subs):
-                try:
-                    # '?' = element FreeCAD could not find: always broken
-                    ok = base is not None and '?' not in sub and \
-                        base.getSubObject(sub) is not None
-                except Exception:
-                    ok = False
-                n_ok, n_ko = (n_ok + 1, n_ko) if ok else (n_ok, n_ko + 1)
-                if base is None:
-                    desc = tr("no object")
-                else:
-                    cible = getattr(base, 'LinkedObject', None)
-                    desc = tr("{label} ({type}, file {file})").format(
-                        label=base.Label, type=base.TypeId, file=base.Document.Label)
-                    if cible is not None:
-                        desc += ' -> ' + tr("{label} ({type}, file {file})").format(
-                            label=cible.Label, type=cible.TypeId, file=cible.Document.Label)
-                (pr if ok else App.Console.PrintError)(
-                    "  " + tr("{status} {joint:<12} {ref}: {sub:<10} on {target}").format(
-                        status=tr("OK") if ok else tr("KO"), joint=o.Label, ref=p,
-                        sub=sub, target=desc) + "\n")
+    for r in diagnostic_rows(doc):
+        ok = r["ok"]
+        n_ok, n_ko = (n_ok + 1, n_ko) if ok else (n_ok, n_ko + 1)
+        if r["base"] is None:
+            desc = tr("no object")
+        else:
+            desc = tr("{label} ({type}, file {file})").format(
+                label=r["base"], type=r["base_type"], file=r["base_file"])
+            if r["target"] is not None:
+                desc += ' -> ' + tr("{label} ({type}, file {file})").format(
+                    label=r["target"], type=r["target_type"], file=r["target_file"])
+        (pr if ok else App.Console.PrintError)(
+            "  " + tr("{status} {joint:<12} {ref}: {sub:<10} on {target}").format(
+                status=tr("OK") if ok else tr("KO"), joint=r["joint_label"], ref=r["ref"],
+                sub=r["sub"], target=desc) + "\n")
     inutiles = marquer_inutilisees(doc)
     if inutiles:
         App.Console.PrintWarning(tr("Frozen copies used by no part (sub-group “Unused”, "

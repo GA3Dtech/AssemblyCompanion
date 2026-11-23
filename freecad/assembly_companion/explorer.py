@@ -39,10 +39,10 @@ User-facing texts are in English, translated through i18n.tr().
 """
 
 import os
-import json
 import queue
-import hashlib
+import weakref
 import zipfile
+import collections
 import concurrent.futures
 
 import FreeCAD as App
@@ -53,10 +53,10 @@ except ImportError:                       # outside FreeCAD (tests)
     from PySide6 import QtWidgets, QtCore, QtGui
 
 from . import docs
+from . import library
 from . import prefs
 from .i18n import tr
 
-VERSION = "1.0"
 
 # ----------------------------------------------------------------------
 #  Dimensions (same as PiStock Local Explorer)
@@ -123,79 +123,14 @@ def set_freeze_on_insert(value):
         pass
 
 
-def cache_dir():
-    base = None
-    for fn in ("getUserCachePath", "getUserAppDataDir"):
-        try:
-            base = getattr(App, fn)()
-            if base:
-                break
-        except Exception:
-            pass
-    d = os.path.join(base or os.path.expanduser("~"), "assembly_explorer_cache")
-    os.makedirs(os.path.join(d, "thumbs"), exist_ok=True)
-    return d
-
-
-def _key(*parts):
-    return hashlib.sha1("|".join(str(p) for p in parts).encode("utf-8")).hexdigest()
-
-
-# ----------------------------------------------------------------------
-#  Folder scan (pure Python, runs in a worker thread)
-# ----------------------------------------------------------------------
-def scan_master(master):
-    """Return {folder: [(path, mtime, size), ...]} for every folder holding
-    .FCStd files directly. os.scandir gives size/date without an extra
-    request per file on Windows (they come with the listing)."""
-    result = {}
-
-    def walk(d):
-        try:
-            with os.scandir(d) as it:
-                entries = list(it)
-        except OSError:
-            return
-        files, subdirs = [], []
-        for e in entries:
-            try:
-                if e.is_dir(follow_symlinks=False):
-                    if not e.name.startswith('.'):
-                        subdirs.append(e.path)
-                elif e.name.lower().endswith(".fcstd"):
-                    st = e.stat()
-                    files.append((e.path, st.st_mtime, st.st_size))
-            except OSError:
-                pass
-        if files:
-            files.sort(key=lambda f: os.path.basename(f[0]).lower())
-            result[d] = files
-        for s in sorted(subdirs, key=str.lower):
-            walk(s)
-
-    walk(master)
-    return result
-
-
-def _scan_cache_file(master):
-    return os.path.join(cache_dir(), "scan_%s.json" % _key(os.path.normcase(master)))
-
-
-def load_scan_cache(master):
-    try:
-        with open(_scan_cache_file(master), "r", encoding="utf-8") as fh:
-            data = json.load(fh)
-        return {d: [tuple(f) for f in files] for d, files in data.items()}
-    except Exception:
-        return None
-
-
-def save_scan_cache(master, scan):
-    try:
-        with open(_scan_cache_file(master), "w", encoding="utf-8") as fh:
-            json.dump(scan, fh)
-    except Exception:
-        pass
+# Folder scan and disk caches live in library.py (no Qt, shared with the
+# API); these names stay importable from here.
+cache_dir = library.cache_dir
+_key = library.cache_key
+scan_master = library.scan_master
+scan_folder = library.scan_folder
+load_scan_cache = library.load_scan_cache
+save_scan_cache = library.save_scan_cache
 
 
 # ----------------------------------------------------------------------
@@ -482,11 +417,18 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.mode = mode
         self.cdir = cache_dir()
         self.cards = {}            # path -> FileCard
-        self.blocks = []           # (block widget, [cards], folder rel path)
-        self.generation = 0        # invalidates results of previous loads
+        self.blocks = []           # (block widget, [cards], folder rel path), display order
+        self.block_map = {}        # norm(folder) -> (block widget, [cards], rel path)
+        self.cards_created = 0     # FileCard count (tests: targeted refresh rebuilds few)
+        self.generation = 0        # invalidates thumbnails of previous loads
         self.results = queue.Queue()
         self.pool = None
-        self.scan_future = None
+        # Every scan (full or targeted) runs on ONE worker thread and results
+        # are applied in submission order: an older full scan can never
+        # overwrite a newer targeted refresh.
+        self.scan_pool = None
+        self.scan_jobs = collections.deque()   # (master, folder, recursive, future)
+        self.master = None
         self.current_scan = None
         self._build_ui()
         self.timer = QtCore.QTimer(self)
@@ -495,11 +437,18 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.filter_timer = QtCore.QTimer(self)
         self.filter_timer.setSingleShot(True)
         self.filter_timer.timeout.connect(self.apply_filter)
+        # Saves come in bursts (new part: saveAs then save): one read per folder
+        self.saved_folders = set()
+        self.save_timer = QtCore.QTimer(self)
+        self.save_timer.setSingleShot(True)
+        self.save_timer.timeout.connect(self._flush_saved)
+        _explorers.add(self)
+        install_save_observer()
         saved = get_saved_dir()
         if saved:
             self.path_edit.setText(saved)
             if os.path.isdir(saved):
-                QtCore.QTimer.singleShot(0, self.refresh)
+                QtCore.QTimer.singleShot(0, lambda: self.refresh(initial=True))
 
     # --- UI ------------------------------------------------------------
     def _build_ui(self):
@@ -516,8 +465,9 @@ class ExplorerWidget(QtWidgets.QWidget):
         b = QtWidgets.QPushButton(tr("Browse…"))
         b.clicked.connect(self._browse)
         row.addWidget(b)
-        b = QtWidgets.QPushButton(tr("Scan"))
-        b.setToolTip(tr("Read the folder again (unchanged thumbnails stay cached)"))
+        b = QtWidgets.QPushButton(tr("Refresh all"))
+        b.setToolTip(tr("Read the whole folder again (unchanged thumbnails stay cached). "
+                        "Right-click a folder header to refresh only that folder."))
         b.clicked.connect(self.refresh)
         row.addWidget(b)
         main.addLayout(row)
@@ -569,40 +519,85 @@ class ExplorerWidget(QtWidgets.QWidget):
             self.refresh()
 
     # --- Scan ----------------------------------------------------------
-    def refresh(self):
-        master = self.path_edit.text().strip()
+    def refresh(self, initial=False):
+        """Show the folder (from the disk cache when there is one), then
+        queue a full rescan. At opening (`initial`) the rescan follows the
+        ExplorerFullScan preference: files created and saved from FreeCAD
+        are refreshed one folder at a time anyway."""
+        master = os.path.normpath(self.path_edit.text().strip()) \
+            if self.path_edit.text().strip() else ""
         set_saved_dir(master)
         if not master or not os.path.isdir(master):
+            self.master = None
             self._show_message(tr("Folder not found: {path}").format(path=master) if master else
-                               tr("Enter a master folder above, then click “Scan”."))
+                               tr("Enter a master folder above, then click “Refresh all”."))
             return
-        cached = load_scan_cache(master)
-        if cached:
-            self._build(master, cached)            # instant display from cache
-            self.status.setText(self.status.text() + "   " + tr("(checking the folder…)"))
-        else:
-            self._show_message(tr("Scanning the folder…"))
-        # Background rescan; the view is rebuilt only if something changed
-        ex = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        self.scan_future = ex.submit(scan_master, master)
-        self.scan_master = master
-        ex.shutdown(wait=False)
+        cached = None
+        if master != self.master or self.current_scan is None:
+            self.master = master
+            self.scan_jobs.clear()                # results of another folder are dropped
+            cached = load_scan_cache(master)
+            if cached:
+                self._build(master, cached)       # instant display from cache
+            else:
+                self._show_message(tr("Scanning the folder…"))
+        if initial and cached and not _full_scan_on_open(master):
+            return
+        self.queue_scan(master, True)
+        self.status.setText(self.status.text() + "   " + tr("(checking the folder…)"))
+
+    def refresh_folder(self, folder, recursive=False):
+        """Targeted refresh: read only `folder` (and its subfolders)."""
+        if self.master and library.is_inside(folder, self.master):
+            self.queue_scan(os.path.normpath(folder), recursive)
+
+    def refresh_file(self, path):
+        """A file was created or saved: refresh its folder if it is shown."""
+        if path and path.lower().endswith(".fcstd"):
+            folder = os.path.dirname(os.path.abspath(path))
+            if self.master and library.is_inside(folder, self.master):
+                self.saved_folders.add(folder)
+                self.save_timer.start(250)
+
+    def _flush_saved(self):
+        folders, self.saved_folders = sorted(self.saved_folders), set()
+        for folder in folders:
+            self.refresh_folder(folder, False)
+
+    def queue_scan(self, folder, recursive):
+        key = (library.norm(folder), recursive)
+        for _m, f, r, fut in self.scan_jobs:      # same request still waiting: once is enough
+            if (library.norm(f), r) == key and not fut.running() and not fut.done():
+                return
+        if self.scan_pool is None:
+            self.scan_pool = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        fut = self.scan_pool.submit(scan_folder, folder, recursive)
+        self.scan_jobs.append((self.master, folder, recursive, fut))
 
     def _check_scan(self):
-        f = self.scan_future
-        if f is None or not f.done():
-            return
-        self.scan_future = None
-        try:
-            scan = f.result()
-        except Exception as e:
-            self.status.setText(tr("Scan error: {error}").format(error=e))
-            return
-        save_scan_cache(self.scan_master, scan)
-        if scan != self.current_scan:
-            self._build(self.scan_master, scan)
+        while self.scan_jobs and self.scan_jobs[0][3].done():
+            master, folder, recursive, fut = self.scan_jobs.popleft()
+            if master != self.master:
+                continue
+            try:
+                partial = fut.result()
+            except Exception as e:
+                self.status.setText(tr("Scan error: {error}").format(error=e))
+                continue
+            self._apply_scan(folder, partial, recursive)
+
+    def _apply_scan(self, folder, partial, recursive):
+        master = self.master
+        new, changed = library.merge_scan(self.current_scan or {}, folder, partial, recursive)
+        save_scan_cache(master, new)
+        if recursive and library.norm(folder) == library.norm(master):
+            _scanned_this_session.add(library.norm(master))
+        if self.current_scan is None or not self.block_map or not new:
+            self._build(master, new)
+        elif changed:
+            self._update_folders(master, new, changed)
         else:
-            self.status.setText(self._summary(scan))
+            self.status.setText(self._summary(new))
 
     # --- Display -------------------------------------------------------
     def _summary(self, scan):
@@ -612,7 +607,7 @@ class ExplorerWidget(QtWidgets.QWidget):
     def _show_message(self, text):
         self._stop_loading()
         self._new_container()
-        self.cards, self.blocks, self.current_scan = {}, [], None
+        self.cards, self.blocks, self.block_map, self.current_scan = {}, [], {}, None
         lbl = QtWidgets.QLabel(text)
         lbl.setAlignment(QtCore.Qt.AlignCenter)
         lbl.setStyleSheet("color: #6b7280; padding: 40px;")
@@ -626,45 +621,82 @@ class ExplorerWidget(QtWidgets.QWidget):
             self.pool = None
 
     def _build(self, master, scan):
+        """Full rebuild of the view (first display, other master folder)."""
         self._stop_loading()
-        self.current_scan = scan
         if not scan:
             self._show_message(tr("No FreeCAD file (.FCStd) under this folder."))
+            self.current_scan = scan
             return
-        # Folders holding files + all their parents up to master
-        relevant = {master}
-        for d in scan:
-            cur = d
-            while True:
-                relevant.add(cur)
-                if os.path.normcase(os.path.normpath(cur)) == \
-                        os.path.normcase(os.path.normpath(master)):
-                    break
-                parent = os.path.dirname(cur)
-                if parent == cur:
-                    break
-                cur = parent
-
-        def sort_key(d):
-            rel = os.path.relpath(d, master)
-            return () if rel == "." else tuple(p.lower() for p in rel.split(os.sep))
-
+        self.current_scan = scan
         scroll_pos = self.scroll.verticalScrollBar().value()
         self._new_container()
-        self.cards, self.blocks = {}, []
+        self.cards, self.block_map = {}, {}
         self.tree_container.setUpdatesEnabled(False)
-        for d in sorted(relevant, key=sort_key):
-            self._add_block(master, d, len(sort_key(d)), scan.get(d, []))
+        new_cards = []
+        for d in library.view_folders(master, scan):
+            block, cards, rel = self._make_block(master, d, scan.get(d, []))
+            self.tree_layout.addWidget(block)
+            self.block_map[library.norm(d)] = (block, cards, rel)
+            new_cards += cards
         self.tree_layout.addStretch()
         self.tree_container.setUpdatesEnabled(True)
+        self._sync_blocks(master, scan)
         QtCore.QTimer.singleShot(0, lambda: self.scroll.verticalScrollBar().setValue(scroll_pos))
         self.status.setText(self._summary(scan))
         self.apply_filter()
+        self._load_thumbnails(new_cards)
 
-        # Thumbnails: cached ones are fast, missing ones are unzipped in parallel
+    def _update_folders(self, master, scan, changed):
+        """Incremental update: rebuild, insert or remove only the blocks of
+        `changed` folders (and parents that appear / disappear). Other blocks
+        keep their cards and thumbnails; scroll position and filter stay."""
+        self.current_scan = scan
+        wanted = library.view_folders(master, scan)
+        wanted_keys = {library.norm(d) for d in wanted}
+        changed_keys = {library.norm(d) for d in changed}
+        self.tree_container.setUpdatesEnabled(False)
+        for key in [k for k in self.block_map if k not in wanted_keys]:
+            self._drop_block(key)
+        new_cards = []
+        for i, d in enumerate(wanted):
+            key = library.norm(d)
+            if key in self.block_map and key not in changed_keys:
+                continue
+            block, cards, rel = self._make_block(master, d, scan.get(d, []))
+            if key in self.block_map:
+                i = self.tree_layout.indexOf(self.block_map[key][0])
+                self._drop_block(key)
+            self.tree_layout.insertWidget(i, block)
+            self.block_map[key] = (block, cards, rel)
+            new_cards += cards
+        self.tree_container.setUpdatesEnabled(True)
+        self._sync_blocks(master, scan)
+        self.apply_filter()
+        self._load_thumbnails(new_cards)
+
+    def _drop_block(self, key):
+        block, cards, _rel = self.block_map.pop(key)
+        for c in cards:
+            if self.cards.get(c.path) is c:
+                del self.cards[c.path]
+        self.tree_layout.removeWidget(block)
+        block.hide()
+        block.deleteLater()
+
+    def _sync_blocks(self, master, scan):
+        """self.blocks (used by the filter) in display order."""
+        self.blocks = [self.block_map[library.norm(d)]
+                       for d in library.view_folders(master, scan)
+                       if library.norm(d) in self.block_map]
+
+    def _load_thumbnails(self, cards):
+        """Cached thumbnails are fast, missing ones are unzipped in parallel."""
+        if not cards:
+            return
+        if self.pool is None:
+            self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS)
         gen = self.generation
-        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS)
-        for card in self.cards.values():
+        for card in cards:
             self.pool.submit(self._job, gen, card.path, card.mtime, card.size)
 
     def _job(self, gen, path, mtime, size):
@@ -674,28 +706,34 @@ class ExplorerWidget(QtWidgets.QWidget):
             img = load_thumbnail(self.cdir, path, mtime, size)
         except Exception:
             img = None
-        self.results.put((gen, path, img))
+        self.results.put((gen, path, mtime, img))
 
     def _drain(self):
-        """GUI timer: apply finished thumbnails, a batch at a time."""
+        """GUI timer: apply finished scans and thumbnails, a batch at a time."""
         self._check_scan()
         for _ in range(BATCH_PER_TICK):
             try:
-                gen, path, img = self.results.get_nowait()
+                gen, path, mtime, img = self.results.get_nowait()
             except queue.Empty:
                 return
             if gen != self.generation:
                 continue
             card = self.cards.get(path)
-            if card is not None:
+            if card is not None and card.mtime == mtime:
                 card.set_image(img)
 
-    def _add_block(self, master, path, depth, files):
+    def _make_block(self, master, path, files):
+        depth = len(library.folder_sort_key(master, path))
         block = QtWidgets.QWidget()
         v = QtWidgets.QVBoxLayout(block)
         v.setSpacing(4)
         v.setContentsMargins(depth * INDENT_PX, 0, 0, 0)
-        header = QtWidgets.QHBoxLayout()
+        head = QtWidgets.QWidget()
+        head.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        head.customContextMenuRequested.connect(
+            lambda pos, p=path, w=head: self.folder_menu(p, w.mapToGlobal(pos)))
+        header = QtWidgets.QHBoxLayout(head)
+        header.setContentsMargins(0, 0, 0, 0)
         header.setSpacing(8)
         icon = QtWidgets.QLabel()
         sp = getattr(getattr(QtWidgets.QStyle, "StandardPixmap", QtWidgets.QStyle), "SP_DirIcon")
@@ -706,8 +744,12 @@ class ExplorerWidget(QtWidgets.QWidget):
         btn.setObjectName("folder")
         btn.setFlat(True)
         btn.setCursor(QtCore.Qt.PointingHandCursor)
-        btn.setToolTip(tr("Open this folder in the file manager"))
+        btn.setToolTip(tr("Open this folder in the file manager. "
+                          "Right-click: refresh this folder."))
         btn.clicked.connect(lambda checked=False, p=path: self.open_in_os(p))
+        btn.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        btn.customContextMenuRequested.connect(
+            lambda pos, p=path, w=btn: self.folder_menu(p, w.mapToGlobal(pos)))
         header.addWidget(btn)
         if rel:
             r = QtWidgets.QLabel(rel)
@@ -719,7 +761,7 @@ class ExplorerWidget(QtWidgets.QWidget):
             c = QtWidgets.QLabel(str(len(files)))
             c.setObjectName("count")
             header.addWidget(c)
-        v.addLayout(header)
+        v.addWidget(head)
         if files:
             strip = QtWidgets.QScrollArea()
             strip.setWidgetResizable(True)
@@ -732,14 +774,24 @@ class ExplorerWidget(QtWidgets.QWidget):
             h.setAlignment(QtCore.Qt.AlignLeft)
             for fpath, mtime, size in files:
                 card = FileCard(fpath, mtime, size, self)
+                self.cards_created += 1
                 h.addWidget(card)
                 self.cards[fpath] = card
                 cards.append(card)
             h.addStretch()
             strip.setWidget(inner)
             v.addWidget(strip)
-        self.tree_layout.addWidget(block)
-        self.blocks.append((block, cards, rel.lower()))
+        return block, cards, rel.lower()
+
+    def folder_menu(self, path, global_pos):
+        menu = QtWidgets.QMenu(self)
+        menu.addAction(tr("Refresh this folder"),
+                       lambda: self.refresh_folder(path, False))
+        menu.addAction(tr("Refresh this folder and its subfolders"),
+                       lambda: self.refresh_folder(path, True))
+        menu.addSeparator()
+        menu.addAction(tr("Open in the file manager"), lambda: self.open_in_os(path))
+        menu.exec(global_pos) if hasattr(menu, "exec") else menu.exec_(global_pos)
 
     # --- Filter --------------------------------------------------------
     def apply_filter(self):
@@ -813,7 +865,58 @@ class ExplorerWidget(QtWidgets.QWidget):
     def closeEvent(self, event):
         self._stop_loading()
         self.timer.stop()
+        self.scan_jobs.clear()
+        if self.scan_pool is not None:
+            self.scan_pool.shutdown(wait=False, cancel_futures=True)
+            self.scan_pool = None
+        _explorers.discard(self)
         super().closeEvent(event)
+
+
+# ----------------------------------------------------------------------
+#  Targeted refresh from FreeCAD (saves, new parts)
+# ----------------------------------------------------------------------
+_explorers = weakref.WeakSet()      # open explorer widgets (tab and dock)
+_scanned_this_session = set()       # norm(master) fully scanned since FreeCAD started
+_save_observer = None
+
+
+def _full_scan_on_open(master):
+    """ExplorerFullScan preference: full rescan when an explorer opens with
+    a cached view ("always", "session" = once per FreeCAD session, "manual")."""
+    mode = prefs.get("ExplorerFullScan")
+    if mode == "manual":
+        return False
+    if mode == "session":
+        return library.norm(master) not in _scanned_this_session
+    return True
+
+
+def refresh_saved_file(path):
+    """Refresh the folder of `path` in every open explorer showing it."""
+    for w in list(_explorers):
+        try:
+            w.refresh_file(path)
+        except RuntimeError:            # Qt object already deleted
+            _explorers.discard(w)
+
+
+class _SaveObserver(object):
+    """App document observer: a document saved under the master folder
+    (new part, new revision, any save) refreshes only its folder."""
+
+    def slotFinishSaveDocument(self, doc, filename):
+        try:
+            refresh_saved_file(filename or getattr(doc, "FileName", ""))
+        except Exception as exc:
+            App.Console.PrintLog("Assembly Companion explorer: %s\n" % exc)
+
+
+def install_save_observer():
+    global _save_observer
+    if _save_observer is None:
+        _save_observer = _SaveObserver()
+        App.addDocumentObserver(_save_observer)
 
 
 # ----------------------------------------------------------------------
