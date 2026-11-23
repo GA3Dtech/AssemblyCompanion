@@ -350,11 +350,13 @@ def attach_lod(obj):
     if not App.GuiUp or "LodPixels" not in obj.PropertiesList or \
             not obj.isDerivedFrom("Mesh::Feature"):
         return False
+    # pivy first: FreeCAD can only hand out Coin nodes (SwitchNode) once the
+    # SWIG wrapper is loaded ("No SWIG wrapped library loaded" otherwise)
+    from pivy import coin
     vobj = obj.ViewObject
     sw = getattr(vobj, "SwitchNode", None) if vobj is not None else None
     if sw is None:
         return False
-    from pivy import coin
     bb = obj.Mesh.BoundBox
     far = coin.SoSeparator()
     far.setName("AC_LodBox")
@@ -416,7 +418,10 @@ class _LodObserver(object):
             d = App.listDocuments().get(dn)
             o = d.getObject(on) if d is not None else None
             if o is not None:
-                attach_lod(o)
+                try:
+                    attach_lod(o)
+                except Exception as exc:
+                    App.Console.PrintLog("Lightweight LOD: %s (%s)\n" % (on, exc))
         self._later(run)
 
     def slotCreatedObject(self, obj):
