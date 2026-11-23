@@ -89,7 +89,7 @@ def _top(z):
 
 def _circle_at(z, r):
     return lambda e: (hasattr(e.Curve, "Radius") and abs(e.Curve.Radius - r) < 1e-6
-                      and abs(e.Curve.Center.z - z) < 1e-6)
+                      and abs((e.Curve.Location if hasattr(e.Curve, "Location") else e.Curve.Center).z - z) < 1e-6)
 
 
 # ----------------------------------------------------------------------
