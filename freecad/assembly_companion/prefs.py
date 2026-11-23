@@ -149,8 +149,11 @@ class _FolderField(object):
             self.edit.setText(d)
 
 
-class PreferencePage(object):
-    """FreeCAD Python preference page: `form` + loadSettings / saveSettings."""
+class AssemblyCompanionPreferencePage(object):
+    """FreeCAD Python preference page: `form` + loadSettings / saveSettings.
+    Named apart from other addons' pages: FreeCAD keys Python pages by class
+    name, and a page called "PreferencePage" (as in CroquisFreeCAD) showed
+    the other addon's settings under both tabs."""
 
     def __init__(self, parent=None):
         QtWidgets = _qt()
@@ -340,4 +343,4 @@ class PreferencePage(object):
 
 def register():
     import FreeCADGui as Gui
-    Gui.addPreferencePage(PreferencePage, "Assembly Companion")
+    Gui.addPreferencePage(AssemblyCompanionPreferencePage, "Assembly Companion")

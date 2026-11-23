@@ -64,7 +64,7 @@ def test_toolbar_declared_in_assembly_workbench():
 
 def test_preference_page_builds_and_loads():
     from freecad.assembly_companion import prefs
-    page = prefs.PreferencePage()
+    page = prefs.AssemblyCompanionPreferencePage()
     page.loadSettings()
     assert page.form.windowTitle()
     page.form.deleteLater()
