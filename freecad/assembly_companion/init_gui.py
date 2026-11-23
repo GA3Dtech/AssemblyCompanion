@@ -104,4 +104,11 @@ try:
 except Exception as exc:
     App.Console.PrintWarning("Assembly Companion: close guard not installed (%s)\n" % exc)
 
+try:
+    from . import lightweight
+    lightweight.install()
+except Exception as exc:
+    App.Console.PrintWarning("Assembly Companion: lightweight level of detail not "
+                             "installed (%s)\n" % exc)
+
 App.Console.PrintLog("Assembly Companion %s loaded\n" % __version__)

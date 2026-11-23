@@ -111,9 +111,13 @@ FreeCAD restart (or a module reload).
   (Skeleton, Skeleton001…): never write them literally in subnames.
 - Level of detail: use `SoLevelOfDetail` (projected screen area), not `SoLOD`
   (camera distance): FreeCAD's default camera is orthographic, zooming does not
-  change the distance. LOD skins are `App::FeaturePython` + `Mesh::PropertyMeshKernel`
-  with a Python view provider; a `Mesh::FeaturePython` brings the native mesh view
-  provider, which does not handle a custom display mode.
+  change the distance. Skins are native `Mesh::Feature` objects (drawn by a
+  FreeCAD without the addon) with a dynamic `LodPixels` float; with the addon,
+  `lightweight.attach_lod` wraps each display mode of the native view provider
+  (`ViewObject.SwitchNode` children) in a `SoLevelOfDetail` at runtime, nothing
+  stored. Skins of 0.1.0 files are `App::FeaturePython` with the `Skin` /
+  `ViewProviderSkin` proxies: keep those classes (a `Mesh::FeaturePython` with
+  a custom display mode crashed FreeCAD).
 - MCP screenshots refit the view: to check what a zoom level shows, use
   `ActiveView.saveImage(path, w, h, "Current")` and read the image.
 - Must run on FreeCAD 1.1+ (tested on 1.1 and 26.3); Windows network shares are a key

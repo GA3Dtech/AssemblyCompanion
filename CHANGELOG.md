@@ -58,6 +58,9 @@ All notable changes to this project are documented here. The format follows
   is reported broken.
 
 ### Changed
+- Lightweight components: skins are native `Mesh::Feature` objects, displayed
+  by a FreeCAD without the addon; the level of detail (box when small on
+  screen) is attached at runtime by the addon. Files of 0.1.0 keep working.
 - Minimum FreeCAD version: 1.1 (was 1.0).
 - Explorer: the "Scan" button is now "Refresh all".
 - The version is read from `package.xml` only (`version.py`); the unused
