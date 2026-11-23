@@ -48,6 +48,9 @@ All notable changes to this project are documented here. The format follows
   delete the cache of the previous folder.
 
 ### Fixed
+- Preferences: the "Assembly Companion" page could show the settings of
+  another addon (CroquisFreeCAD): FreeCAD keys Python pages by class name,
+  ours is now `AssemblyCompanionPreferencePage`.
 - Explorer: folders open again in the file manager with a FreeCAD AppImage
   (its PYTHONHOME was inherited and made Nemo fail): the file manager is
   started without the bundle's variables.

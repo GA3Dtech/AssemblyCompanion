@@ -92,6 +92,9 @@ FreeCAD restart (or a module reload).
   an existing toolbar and silently ignores unknown toolbar names.
 - Settings: always through `prefs.get()` / `prefs.put()` (keys in
   `prefs.DEFAULTS`), and expose new ones on the preference page.
+- FreeCAD keys Python preference pages by **class name**: give every page
+  class a name starting with `AssemblyCompanion` (a generic `PreferencePage`
+  collided with CroquisFreeCAD's page).
 - Translations: user-facing texts are English literals in `tr("...")`,
   formatted after translation with named fields (`.format(name=...)`). After
   changing texts run `python3 tools/i18n.py update`, then fill the new entries
