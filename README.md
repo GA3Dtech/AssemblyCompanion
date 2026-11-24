@@ -13,7 +13,7 @@ The built-in Assembly workbench links parts from their source files (App::Link).
 ### Durable assemblies
 | Command | What it does |
 |---|---|
-| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. Links to a Std_Part container get a frozen Std_Part holding a dead copy of each Body, joints included. |
+| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. Std_Part containers, imported STEP groups and sub-assemblies (Links or sub-assemblies of the Assembly workbench, any depth) are frozen with their parts, names, placements, colours and internal joints, or optionally as one solid per component. A component whose content cannot be frozen stays linked and is reported; one undo step. |
 | **Relink to sources** | Points frozen parts back to their source file, to edit them. Then freeze again. |
 | **Delete part joints** | Deletes every joint (and grounding) of the selected parts, in one undo step. |
 | **Check frozen assembly** | Reports, for every joint reference, whether it resolves, and on which object and file. |

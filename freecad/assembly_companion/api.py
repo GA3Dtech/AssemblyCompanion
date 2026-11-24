@@ -175,17 +175,31 @@ def list_components(doc):
     return out
 
 
-def freeze_parts(doc, names=None, dry_run=False):
-    """Freeze the Links `names` (internal names; None = every external Link):
-    each one points to a dead BREP copy stored in the document.
+def freeze_parts(doc, names=None, dry_run=False, mode="structure"):
+    """Freeze the Links and sub-assemblies `names` (internal names; None =
+    every external one): each one points to a dead BREP copy stored in the
+    document. Containers (Std_Part, STEP import groups) and sub-assemblies
+    are frozen with their parts, names, placements and joints (mode
+    "structure"), or as ONE solid per Link (mode "block"). A Link whose
+    content cannot be frozen is left linked and listed in "skipped"; one
+    undo step, nothing changed when an error occurs.
     -> {"frozen": [...], "skipped": [{"name", "reason"}], "refs_updated": n}"""
     from . import freeze
     doc = _doc(doc)
+    if mode not in freeze.MODES:
+        raise UnsupportedObjectError(tr("Unknown freeze mode: {mode}").format(mode=mode),
+                                     mode=mode)
     links = freeze.liens_externes(doc, _objs(doc, names))
     if dry_run:
-        return {"frozen": [l.Name for l in links], "skipped": [], "refs_updated": 0,
-                "dry_run": True}
-    return freeze.figer(doc, _objs(doc, names))
+        frozen, skipped = [], []
+        for l in links:
+            reasons = freeze.obstacles(l.LinkedObject)
+            if reasons:
+                skipped.append({"name": l.Name, "reason": "; ".join(reasons)})
+            else:
+                frozen.append(l.Name)
+        return {"frozen": frozen, "skipped": skipped, "refs_updated": 0, "dry_run": True}
+    return freeze.figer(doc, _objs(doc, names), mode=mode)
 
 
 def relink_parts(doc, names=None, dry_run=False):

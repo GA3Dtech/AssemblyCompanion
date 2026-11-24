@@ -47,7 +47,20 @@ All notable changes to this project are documented here. The format follows
   "Empty the cache" button; changing the parts library folder offers to
   delete the cache of the previous folder.
 
+- Freeze: sub-assemblies (App::Link to an assembly and Assembly::AssemblyLink
+  of FreeCAD 26.x, several levels) and imported STEP groups (App::LinkGroup)
+  are frozen with their parts, names, placements, colours and internal
+  joints; option "one solid per component" (preference, API mode="block");
+  relink, refreeze, BOM and diagnostic follow. Nothing is half frozen: a
+  component that cannot be frozen stays linked and is reported, and any
+  error undoes the whole freeze.
+
 ### Fixed
+- Freeze: a sub-assembly lost all its parts (only Bodies and solids were
+  copied into the frozen container), and the parts of an imported STEP
+  group disappeared.
+- BOM and freeze: a Link of another file carrying the name of a sibling
+  could hide that sibling (names were compared without their document).
 - Preferences: the "Assembly Companion" page could show the settings of
   another addon (CroquisFreeCAD): FreeCAD keys Python pages by class name,
   ours is now `AssemblyCompanionPreferencePage`.

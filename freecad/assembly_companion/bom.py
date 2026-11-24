@@ -74,7 +74,8 @@ def _children(o):
     members = [c for c in (getattr(o, "Group", []) or []) if not _skip(c)]
     names = set(c.Name for c in members)
     return [c for c in members
-            if not any(p.Name in names for p in c.InList if p is not o)]
+            if not any(p.Name in names and p.Document is o.Document
+                       for p in c.InList if p is not o)]
 
 
 def _file(doc):
@@ -92,12 +93,20 @@ def collect(roots, asm_doc):
     def target(t, qty, state, depth):
         if depth > 50:
             return
-        if "LWMap" in t.PropertiesList:         # lightweight component
+        if t.isDerivedFrom("App::Link"):        # Link to a Link (frozen chains)
+            walk(t, qty, state, depth + 1)
+        elif "LWMap" in t.PropertiesList:       # lightweight component
             add(t.LWLabel or t.Label, os.path.basename(t.LWFile or ""), LIGHT, qty)
         elif freeze._est_conteneur_fige(t):
             for c in t.Group:
                 if freeze._est_fige(c):
                     target(c, qty, FROZEN, depth + 1)
+                elif freeze._est_lien_fige(c):  # component of a frozen sub-assembly
+                    walk(c, qty, FROZEN, depth + 1)
+        elif freeze._est_copie_figee(t) and "FigeNomenclature" in t.PropertiesList:
+            for line in t.FigeNomenclature:     # frozen block: the parts it holds
+                label, _sep, src = line.rpartition("|")
+                add(label, src, FROZEN, qty)
         elif freeze._est_copie_figee(t):
             add(t.FigeLabel or t.Label, os.path.basename(t.FigeFichier), FROZEN, qty)
         elif t.isDerivedFrom("PartDesign::Body") or (_is_solid(t) and
@@ -128,6 +137,7 @@ def collect(roots, asm_doc):
 def roots_of(doc):
     """Top-level assemblies of `doc`, else its root objects (Std_Part file)."""
     asms = [o for o in doc.Objects if o.isDerivedFrom("Assembly::AssemblyObject")
+            and not freeze._est_fige(o)         # frozen sub-assemblies (Solides_figes)
             and not any(p.isDerivedFrom("Assembly::AssemblyObject") for p in o.InList)]
     if asms:
         return asms

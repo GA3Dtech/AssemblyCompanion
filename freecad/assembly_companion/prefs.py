@@ -40,6 +40,7 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
+    "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
@@ -243,6 +244,13 @@ class AssemblyCompanionPreferencePage(object):
         f = QtWidgets.QFormLayout(g)
         self.freeze_insert = QtWidgets.QCheckBox(tr("Freeze parts on visual insertion"))
         f.addRow(self.freeze_insert)
+        self.freeze_mode = QtWidgets.QComboBox()
+        self.freeze_mode.addItem(tr("Keep their structure (parts, names, joints)"), "structure")
+        self.freeze_mode.addItem(tr("One solid per component (lighter, rigid)"), "block")
+        self.freeze_mode.setToolTip(
+            tr("How Freeze copies a Std_Part, an imported STEP group or a sub-assembly. "
+               "Sub-assemblies of the Assembly workbench always keep their structure."))
+        f.addRow(tr("Freeze containers and sub-assemblies:"), self.freeze_mode)
         self.leave_asm = QtWidgets.QCheckBox(
             tr("Leave the assembly edit mode when opening selection sets"))
         self.leave_asm.setToolTip(
@@ -309,6 +317,8 @@ class AssemblyCompanionPreferencePage(object):
         self.insert_new.setChecked(get("NewPartInsert"))
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
+        i = self.freeze_mode.findData(get("FreezeMode"))
+        self.freeze_mode.setCurrentIndex(i if i >= 0 else 0)
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
         self.sets_elements.setChecked(get("SelectionSetsElements"))
         self.lod.setValue(get("LightweightLodPixels"))
@@ -334,6 +344,7 @@ class AssemblyCompanionPreferencePage(object):
         put("NewPartInsert", self.insert_new.isChecked())
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())
+        put("FreezeMode", self.freeze_mode.currentData())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
         put("SelectionSetsElements", self.sets_elements.isChecked())
         put("LightweightLodPixels", self.lod.value())

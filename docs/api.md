@@ -35,10 +35,15 @@ Components of the assemblies of `doc` (Links and parts directly in an
 assembly): name, label, state (frozen / linked / local / lightweight /
 broken), source file, joints using them.
 
-### `freeze_parts(doc, names=None, dry_run=False)`
+### `freeze_parts(doc, names=None, dry_run=False, mode='structure')`
 
-Freeze the Links `names` (internal names; None = every external Link):
-each one points to a dead BREP copy stored in the document.
+Freeze the Links and sub-assemblies `names` (internal names; None =
+every external one): each one points to a dead BREP copy stored in the
+document. Containers (Std_Part, STEP import groups) and sub-assemblies
+are frozen with their parts, names, placements and joints (mode
+"structure"), or as ONE solid per Link (mode "block"). A Link whose
+content cannot be frozen is left linked and listed in "skipped"; one
+undo step, nothing changed when an error occurs.
 -> {"frozen": [...], "skipped": [{"name", "reason"}], "refs_updated": n}
 
 ### `relink_parts(doc, names=None, dry_run=False)`

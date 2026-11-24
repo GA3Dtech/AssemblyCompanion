@@ -125,18 +125,48 @@ def _copy_joint(doc, joint, mapping):
     plain copyObject is not rebuilt by the workbench: the copy lands at the
     root of the assembly and the solver ignores it), with every reference to
     an original pointed to its clone. Returns the new joint or None."""
-    import JointObject
-    import UtilsAssembly
     asm = None
     for p in joint.InList:
         if p.isDerivedFrom("Assembly::AssemblyObject"):
             asm = p
     if asm is None:
         return None
+    return _new_joint(joint, asm, mapping.get,
+                      lambda prop: _remap_refs(joint, prop, mapping))
+
+
+def copy_joint_into(doc, joint, mapping, target_asm, paths):
+    """Recreate `joint` of a source assembly in another assembly (a frozen
+    copy): `mapping` = {source component: copy}, `paths` = the freeze path
+    mapping {source name: (copy name, sub-mapping)} used to translate the
+    path inside each component. Returns the new joint or None."""
+    def refs(prop):
+        t = joint.getTypeIdOfProperty(prop)
+        out = []
+        for base, subs in freeze._lire(joint, prop, t):
+            if base is None:
+                continue
+            if base.Name in paths and base not in (joint.InList or []):
+                new_base = doc.getObject(paths[base.Name][0])
+                sub_paths = paths[base.Name][1]
+            else:                       # reference relative to the assembly
+                new_base, sub_paths = target_asm, paths
+            if new_base is None:
+                return None
+            out.append((new_base, [freeze.reecrire_sub_chemins(s, -1, sub_paths)
+                                   if sub_paths is not None else freeze.reecrire_sub(s, -1)
+                                   for s in subs]))
+        return out[0] if out else None
+    return _new_joint(joint, target_asm, mapping.get, refs)
+
+
+def _new_joint(joint, asm, target_of, refs_of):
+    import JointObject
+    import UtilsAssembly
     group = UtilsAssembly.getJointGroup(asm)
 
     if "ObjectToGround" in joint.PropertiesList:
-        target = mapping.get(joint.ObjectToGround)
+        target = target_of(joint.ObjectToGround)
         if target is None:
             return None
         new = group.newObject("App::FeaturePython", "GroundedJoint")
@@ -147,6 +177,9 @@ def _copy_joint(doc, joint, mapping):
 
     if not hasattr(joint, "JointType"):
         return None                     # rigid groups and others: not handled
+    refs = [r for r in (refs_of("Reference1"), refs_of("Reference2")) if r is not None]
+    if len(refs) < 2:
+        return None
     new = group.newObject("App::FeaturePython", "Joint")
     new.Label = joint.Label
     JointObject.Joint(new, JointObject.JointTypes.index(joint.JointType))
@@ -162,8 +195,6 @@ def _copy_joint(doc, joint, mapping):
     for i in ("1", "2"):
         if getattr(joint, "Detach" + i, False):
             setattr(new, "Placement" + i, getattr(joint, "Placement" + i))
-    refs = [r for r in (_remap_refs(joint, "Reference1", mapping),
-                        _remap_refs(joint, "Reference2", mapping)) if r is not None]
     # Same call as the joint task panel: sets the references, computes the
     # connector placements, pre-solves and solves the assembly
     new.Proxy.setJointConnectors(new, refs)

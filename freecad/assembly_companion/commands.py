@@ -67,7 +67,8 @@ def _selected_link_names():
 
 
 def _freeze():
-    _module("api").freeze_parts(App.ActiveDocument, _selected_link_names())
+    _module("api").freeze_parts(App.ActiveDocument, _selected_link_names(),
+                                mode=_module("prefs").get("FreezeMode"))
 
 
 def _relink():

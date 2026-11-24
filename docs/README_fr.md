@@ -74,6 +74,8 @@ A2+ stockait au contraire un **solide mort** dans l'assemblage. Le fichier se ro
 
 **Figer un assemblage** : lancer Figer composants. Les copies sont rangées, masquées, dans le groupe `Solides_figes`. Chaque copie garde le fichier source, l'objet, la date et la version de FreeCAD (groupe de propriétés « Figeage »).
 
+**Containers et sous-assemblages** : un Std_Part, un groupe d'import STEP (`App::LinkGroup`, avec ses solides ou ses Links) et un sous-assemblage (inséré comme Link, ou comme sous-assemblage de l'atelier Assembly de FreeCAD 26.x, sur plusieurs niveaux) sont figés avec leurs pièces, leurs noms, leurs placements, leurs couleurs et leurs liaisons internes : un sous-assemblage devient un assemblage figé rangé dans `Solides_figes`, et les liaisons du grand assemblage qui pointent dans le sous-assemblage restent valides. La préférence « Figer les containers et sous-assemblages » permet aussi d'en faire **un seul solide** par composant (plus léger, rigide ; la nomenclature garde la liste des pièces qu'il contient). Si un élément ne peut pas être figé (lien cassé…), le composant reste lié et un message dit pourquoi : jamais de gel à moitié. Le gel est une seule étape d'annulation.
+
 **Modifier une pièce** :
 
 1. Sélectionner la pièce, puis lancer **Relier aux sources**.
