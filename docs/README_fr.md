@@ -2,7 +2,7 @@
 
 Version 1.3, testée sur FreeCAD 26.3rc2 (Windows).
 
-> **Assembly Companion 0.1.0** – Ce document vient de l'époque des macros. Dans le workbench, chaque macro est devenue une commande :
+> **Assembly Companion 0.2.0** – Ce document vient de l'époque des macros. Dans le workbench, chaque macro est devenue une commande :
 >
 > | Macro | Commande du workbench | Module |
 > |---|---|---|

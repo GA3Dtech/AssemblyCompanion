@@ -131,7 +131,7 @@ Requires FreeCAD 1.1 or newer.
 
 ## Status
 
-Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26.3rc2. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
+Version 0.2.0 – sub-assemblies and STEP groups frozen, STEP import as part, body extraction, explorer favorites and configurable cache, generic panels, public Python API and automatic tests on FreeCAD 1.1.4, 26.3 and the weekly build. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
 
 Every function is covered by the automatic tests (FreeCAD 1.1.4, 26.3 and the weekly build). **Stable** functions are used on real projects; **experimental** ones are new: tested, but not yet proven in daily work — check the result and report problems.
 
