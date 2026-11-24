@@ -97,6 +97,9 @@ All notable changes to this project are documented here. The format follows
   is reported broken.
 
 ### Changed
+- README: status table (stable / experimental) per function, credits table
+  (PiStock, ShowRoom, FreeCAD-Nxt), release process (`docs/RELEASING.md`).
+  Every source file carries the SPDX line and the LGPL header (checked).
 - Toolbar and menu ordered by workflow (library first; fasteners,
   alignment and reactivation last), one toolbar with separators.
 - Passive workbench: no server, network or AI code in the addon (checked by

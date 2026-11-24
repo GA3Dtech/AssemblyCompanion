@@ -133,9 +133,35 @@ Requires FreeCAD 1.1 or newer.
 
 Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26.3rc2. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
 
+Every function is covered by the automatic tests (FreeCAD 1.1.4, 26.3 and the weekly build). **Stable** functions are used on real projects; **experimental** ones are new: tested, but not yet proven in daily work — check the result and report problems.
+
+| Function | Status |
+|---|---|
+| Freeze / relink parts and Std_Parts, check frozen assembly, repair, delete part joints | stable |
+| Outdated frozen parts, bill of materials (flat), archive, replace component, check collisions | stable |
+| Insert component (visual), local explorer (targeted refresh, cache), new part from selection, update part binder | stable |
+| Duplicate components (joints included), group fasteners, align elements, selection sets, reactivate assembly | stable |
+| Lightweight components (skeleton + mesh skins, level of detail) | stable |
+| Freeze sub-assemblies and imported STEP groups, "one solid per component" mode | experimental |
+| Bill of materials by sub-assembly (hierarchical) | experimental |
+| Import STEP as part | experimental |
+| Extract bodies | experimental |
+| Explorer favorites and tags, configurable cache folder | experimental |
+| QML panels (generic panels with widgets fallback) | experimental |
+
+## Releases
+
+`main` is the development branch; stable versions are published from the `release` branch, each with a new version and date in `package.xml` and a section in `CHANGELOG.md` (see [docs/RELEASING.md](docs/RELEASING.md)).
+
 ## Credits and license
 
-The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech). The generic panels (`bridge.py`, `qml_host.py`, `resources/qml/`) adapt code from [ShowRoom](https://github.com/oficinerobotica/ShowRoom) (dtpanels) and [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) (quick_host), both LGPL-2.1-or-later.
+Code taken from other projects, credited in the headers of the files that use it:
+
+| Project | Authors | License | Used in |
+|---|---|---|---|
+| [PiStock](https://github.com/pistock-org/PiStock) – local explorer | GA3Dtech | LGPL-2.1-or-later (relicensed by its author for this project) | `explorer.py` |
+| [ShowRoom](https://github.com/oficinerobotica/ShowRoom) – `dtpanels` (bridge, widget form, theme) | OficineRobotica | LGPL-2.1-or-later | `panel_model.py`, `bridge.py`, `qml_host.py`, `resources/qml/` |
+| [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) – `quick_host`, `qtquick` | obelisk79 | LGPL-2.1-or-later | `qml_host.py` |
 
 Licensed under the **LGPL-2.1-or-later**, like FreeCAD itself. No CLA: contributions are welcome under the same license.
 
