@@ -16,7 +16,7 @@
 # ---------------------------------------------------------------------------
 
 __Title__ = "Selection sets"
-__Author__ = "Claude"
+__Author__ = "GA3Dtech"
 __Version__ = "1.0"
 __Comment__ = "Manager of named selection sets for large assemblies"
 

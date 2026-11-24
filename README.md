@@ -53,17 +53,17 @@ When the built-in **Assembly** workbench is active, the Companion tools are avai
 
 The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
 
-## API for agents (MCP)
+## Python API (scripts, macros, addons)
 
-`freecad/assembly_companion/api.py` exposes every tool as a plain function
-for scripts, AI agents and the
-[FreeCAD MCP server](https://github.com/neka-nat/freecad-mcp): no dialog,
-the document passed explicitly, JSON-serialisable results, typed errors
-(`errors.py`) and `dry_run=True` on the functions that change a document.
-`api.describe()` returns the catalogue; the reference is
+Assembly Companion is a passive workbench: it runs no server, opens no network
+connection and starts nothing on its own. `freecad/assembly_companion/api.py`
+exposes every tool as a plain Python function for scripts, macros and other
+addons: no dialog, the document passed explicitly, JSON-serialisable results,
+typed errors (`errors.py`) and `dry_run=True` on the functions that change a
+document. `api.describe()` returns the catalogue; the reference is
 [docs/api.md](docs/api.md).
 
-In the running FreeCAD (MCP `execute_code`):
+In the FreeCAD Python console or a macro:
 
 ```python
 from freecad.assembly_companion import api
@@ -72,8 +72,8 @@ print(api.freeze_parts("Assembly", dry_run=True))   # what would be frozen
 print(api.diagnose("Assembly")["broken"])
 ```
 
-Batch on a file without the GUI (MCP `execute_code_headless`, or
-`freecadcmd`): bill of materials, collisions, archive, diagnostic.
+Batch on a file without the GUI (`freecadcmd`): bill of materials,
+collisions, archive, diagnostic.
 
 ```python
 import FreeCAD as App

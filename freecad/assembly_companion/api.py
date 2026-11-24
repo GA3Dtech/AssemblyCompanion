@@ -16,8 +16,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this library; if not, see <https://www.gnu.org/licenses/>.
 """
-api.py (Assembly Companion) - the stable public API, for scripts, agents and
-the FreeCAD MCP server (execute_code / execute_code_headless).
+api.py (Assembly Companion) - the stable public API, for scripts, macros and
+other addons (a third-party MCP addon may call it too). The workbench itself
+stays passive: no server, no network, nothing started on import.
 
 Contract:
   * headless-safe: no dialog, no use of the active view or of
@@ -132,7 +133,7 @@ def _component_dict(o, doc):
 # ----------------------------------------------------------------------
 def describe():
     """Catalogue of the public functions: name, docstring, parameters with
-    their defaults, for an agent to discover the API on its own."""
+    their defaults, for a script to discover the API on its own."""
     out = {"api_version": API_VERSION, "functions": []}
     for name in __all__:
         f = globals().get(name)

@@ -4,7 +4,8 @@
      in freecad/assembly_companion/api.py, then run the tool. -->
 
 `freecad/assembly_companion/api.py` is the stable entry point for scripts,
-agents and the FreeCAD MCP server. It is headless-safe (no dialog, no active
+macros and other addons (a third-party MCP addon may call it too). It is
+headless-safe (no dialog, no active
 view), takes the document explicitly (object, internal name or label),
 objects by internal name and files by path, and returns plain data accepted
 by `json.dumps`. Functions that change a document accept `dry_run=True`.
@@ -26,7 +27,7 @@ API version: **1** (incremented at every breaking change).
 ### `describe()`
 
 Catalogue of the public functions: name, docstring, parameters with
-their defaults, for an agent to discover the API on its own.
+their defaults, for a script to discover the API on its own.
 
 ### `list_components(doc)`
 
