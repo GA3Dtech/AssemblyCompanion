@@ -10,6 +10,18 @@ The built-in Assembly workbench links parts from their source files (App::Link).
 
 ## Tools
 
+The toolbar and the menu follow the workflow, one group per theme
+(separators between groups):
+
+| Group | Commands |
+|---|---|
+| Library | Local parts explorer, Insert component (visual) |
+| Build | New part from selection, Update part binder, Duplicate components, Replace component, Selection sets |
+| Durable | Freeze parts, Relink to sources, Outdated frozen parts, Check frozen assembly, Delete part joints (menu: Repair) |
+| Large assemblies | Make lightweight, Restore full components, Open source file |
+| Reports | Bill of materials, Check collisions, Archive |
+| Finishing | Group fasteners with their body, Align elements, Reactivate assembly |
+
 ### Durable assemblies
 | Command | What it does |
 |---|---|

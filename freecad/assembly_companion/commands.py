@@ -263,21 +263,37 @@ COMMANDS = {
             "combine."), needs_document=False),
 }
 
-TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
-                   "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
-                   "AssemblyCompanion_Outdated", "AssemblyCompanion_Bom",
-                   "AssemblyCompanion_Archive", "AssemblyCompanion_Lightweight",
-                   "AssemblyCompanion_RestoreFull", "AssemblyCompanion_OpenSource",
-                   "AssemblyCompanion_Reactivate"]
-TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
-                   "AssemblyCompanion_Replace",
-                   "AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
-                   "AssemblyCompanion_Fasteners",
-                   "AssemblyCompanion_Explorer",
-                   "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets",
-                   "AssemblyCompanion_Collisions"]
-MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]
-        + TOOLBAR_LIBRARY)
+# Order of the toolbar and the menu: the workflow, from the parts library
+# to the finishing tools, one group per theme (separators between groups).
+GROUPS = [
+    ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent"]),
+    ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
+               "AssemblyCompanion_Duplicate", "AssemblyCompanion_Replace",
+               "AssemblyCompanion_SelectionSets"]),
+    ("Durable", ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
+                 "AssemblyCompanion_Outdated", "AssemblyCompanion_Diagnostic",
+                 "AssemblyCompanion_DeleteJoints"]),
+    ("Large assemblies", ["AssemblyCompanion_Lightweight", "AssemblyCompanion_RestoreFull",
+                          "AssemblyCompanion_OpenSource"]),
+    ("Reports", ["AssemblyCompanion_Bom", "AssemblyCompanion_Collisions",
+                 "AssemblyCompanion_Archive"]),
+    ("Finishing", ["AssemblyCompanion_Fasteners", "AssemblyCompanion_Align",
+                   "AssemblyCompanion_Reactivate"]),
+]
+
+
+def _with_separators(extra=None):
+    out = []
+    for name, cmds in GROUPS:
+        if out:
+            out.append("Separator")
+        out += cmds + (extra or {}).get(name, [])
+    return out
+
+
+TOOLBAR = _with_separators()
+# The menu also holds the commands kept out of the toolbar
+MENU = _with_separators({"Durable": ["AssemblyCompanion_Repair"]})
 
 
 def register():

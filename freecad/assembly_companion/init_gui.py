@@ -38,8 +38,7 @@ class AssemblyCompanionWorkbench(Gui.Workbench):
     Icon = icon("AssemblyCompanion.svg")
 
     def Initialize(self):
-        self.appendToolbar("Companion - Durable", commands.TOOLBAR_DURABLE)
-        self.appendToolbar("Companion - Library", commands.TOOLBAR_LIBRARY)
+        self.appendToolbar("Assembly Companion", commands.TOOLBAR)
         self.appendMenu("Assembly Companion", commands.MENU)
 
     def Activated(self):
@@ -84,7 +83,7 @@ def sync_assembly_toolbar():
     bar = grp.GetGroup(ASM_TOOLBAR_GROUP)
     bar.SetString("Name", ASM_TOOLBAR_NAME)
     bar.SetBool("Active", active)
-    cmds = commands.TOOLBAR_DURABLE + ["Separator"] + commands.TOOLBAR_LIBRARY
+    cmds = commands.TOOLBAR
     for i, cmd in enumerate(cmds):
         if cmd == "Separator":
             bar.SetString("Separator%d" % i, "")

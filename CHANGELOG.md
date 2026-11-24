@@ -78,6 +78,8 @@ All notable changes to this project are documented here. The format follows
   is reported broken.
 
 ### Changed
+- Toolbar and menu ordered by workflow (library first; fasteners,
+  alignment and reactivation last), one toolbar with separators.
 - Passive workbench: no server, network or AI code in the addon (checked by
   a test); the API is documented for scripts, macros and other addons. The
   coding agent's instructions (`CLAUDE.md`) are no longer in the repository.

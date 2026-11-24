@@ -58,7 +58,7 @@ def test_toolbar_declared_in_assembly_workbench():
     bar = grp.GetGroup(init_gui.ASM_TOOLBAR_GROUP)
     assert bar.GetString("Name") == init_gui.ASM_TOOLBAR_NAME
     keys = [k for t, k, *_ in bar.GetContents() if t == "String"]
-    for cmd in commands.TOOLBAR_DURABLE + commands.TOOLBAR_LIBRARY:
+    for cmd in [c for c in commands.MENU if c != "Separator"]:
         assert cmd in keys, cmd
 
 
