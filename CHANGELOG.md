@@ -55,6 +55,10 @@ All notable changes to this project are documented here. The format follows
   component that cannot be frozen stays linked and is reported, and any
   error undoes the whole freeze.
 
+- BOM by sub-assembly: preference "Bill of materials by sub-assembly" and
+  `api.bom(doc, hierarchical=True)` / `export_bom_csv(..., hierarchical=True)`
+  (sub-assemblies as rows holding their parts, "Level" column in the CSV).
+
 ### Fixed
 - Freeze: a sub-assembly lost all its parts (only Bodies and solids were
   copied into the frozen container), and the parts of an imported STEP

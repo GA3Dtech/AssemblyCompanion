@@ -245,3 +245,42 @@ def test_outdated_frozen_subassembly_is_refrozen(project):
     before = signature(doc)
     api.refreeze_outdated(doc)
     assert signature(doc) == before and api.diagnose(doc)["broken"] == 0
+
+
+# ----------------------------------------------------------------------
+#  BOM by sub-assembly and archive of every level
+# ----------------------------------------------------------------------
+def _tree_names(tree):
+    return {r["part"]: (r["quantity"], _tree_names(r["children"])) for r in tree}
+
+
+def test_hierarchical_bom_linked_and_frozen(al_project):
+    api = _api()
+    doc = open_doc(os.path.join(al_project, "main.FCStd"))
+    expected = {"Base": (1, {}),
+                "SubAssembly": (1, {"BlockA": (1, {}), "BlockB": (1, {}),
+                                    "SubSub": (1, {"Cap": (1, {})})})}
+    assert _tree_names(api.bom(doc, hierarchical=True)) == expected
+    api.freeze_parts(doc)
+    tree = api.bom(doc, hierarchical=True)
+    assert _tree_names(tree) == expected
+    assert all(r["state"] == "frozen" for r in tree)
+    path = os.path.join(al_project, "bom.csv")
+    res = api.export_bom_csv(doc, path, hierarchical=True)
+    assert res["rows"] == 6
+    with open(path, encoding="utf-8-sig") as fh:
+        lines = fh.read().splitlines()
+    assert len(lines) == 7 and lines[1].split(",")[0] == "1"
+
+
+def test_archive_holds_every_level(al_project, tmp_path):
+    import zipfile
+    api = _api()
+    doc = open_doc(os.path.join(al_project, "main.FCStd"))
+    z = str(tmp_path / "pack.zip")
+    res = api.archive(doc, z)
+    names = sorted(os.path.basename(f) for f in res["files"])
+    assert names == ["base.FCStd", "blocka.FCStd", "blockb.FCStd", "cap.FCStd",
+                     "main.FCStd", "sub.FCStd", "subsub.FCStd"]
+    with zipfile.ZipFile(z) as zf:
+        assert len([n for n in zf.namelist() if n.endswith(".FCStd")]) == 7

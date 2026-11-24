@@ -283,22 +283,31 @@ def refreeze_outdated(doc, names=None, dry_run=False):
 # ----------------------------------------------------------------------
 #  BOM, collisions, archive
 # ----------------------------------------------------------------------
-def bom(doc):
+def bom(doc, hierarchical=False):
     """Bill of materials of `doc`, frozen parts under their original name.
-    -> [{"quantity", "part", "source_file", "state"}] sorted by part"""
+    Flat: [{"quantity", "part", "source_file", "state"}] sorted by part, the
+    parts of sub-assemblies counted in. hierarchical=True: sub-assemblies
+    are rows of their own with their parts in "children" (same keys,
+    recursively)."""
     from . import bom as _bom
     doc = _doc(doc)
+    if hierarchical:
+        return _bom.collect_tree(_bom.roots_of(doc), doc)
     rows = _bom.collect(_bom.roots_of(doc), doc)
     return [{"quantity": q, "part": n, "source_file": f, "state": s}
             for (n, f, s), q in sorted(rows.items(), key=lambda kv: (kv[0][0].lower(),
                                                                     kv[0][1]))]
 
 
-def export_bom_csv(doc, path):
-    """Write the bill of materials of `doc` to the CSV file `path`.
-    -> {"path", "rows"}"""
+def export_bom_csv(doc, path, hierarchical=False):
+    """Write the bill of materials of `doc` to the CSV file `path` (with a
+    "Level" column when hierarchical). -> {"path", "rows"}"""
     from . import bom as _bom
     doc = _doc(doc)
+    if hierarchical:
+        tree = _bom.collect_tree(_bom.roots_of(doc), doc)
+        _bom.write_csv_tree(path, tree)
+        return {"path": path, "rows": len(_bom.flatten_tree(tree))}
     rows = _bom.collect(_bom.roots_of(doc), doc)
     _bom.write_csv(path, rows)
     return {"path": path, "rows": len(rows)}

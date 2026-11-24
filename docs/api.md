@@ -73,15 +73,18 @@ Frozen parts and the state of their source file.
 Refreeze the frozen copies `names` (None = every outdated one) from
 their saved source file. -> {"refrozen": [...]}
 
-### `bom(doc)`
+### `bom(doc, hierarchical=False)`
 
 Bill of materials of `doc`, frozen parts under their original name.
--> [{"quantity", "part", "source_file", "state"}] sorted by part
+Flat: [{"quantity", "part", "source_file", "state"}] sorted by part, the
+parts of sub-assemblies counted in. hierarchical=True: sub-assemblies
+are rows of their own with their parts in "children" (same keys,
+recursively).
 
-### `export_bom_csv(doc, path)`
+### `export_bom_csv(doc, path, hierarchical=False)`
 
-Write the bill of materials of `doc` to the CSV file `path`.
--> {"path", "rows"}
+Write the bill of materials of `doc` to the CSV file `path` (with a
+"Level" column when hierarchical). -> {"path", "rows"}
 
 ### `check_collisions(doc, skip_fasteners=True, show=False)`
 

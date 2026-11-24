@@ -42,6 +42,7 @@ import csv
 import FreeCAD as App
 
 from . import freeze
+from . import prefs
 from .i18n import tr, language
 
 FROZEN, LINKED, LOCAL, LIGHT = "frozen", "linked", "local", "lightweight"
@@ -134,6 +135,103 @@ def collect(roots, asm_doc):
     return rows
 
 
+# ----------------------------------------------------------------------
+#  Hierarchical BOM: sub-assemblies as nodes, their parts below
+# ----------------------------------------------------------------------
+def _sub_assembly(o):
+    """Assembly shown by `o` (an App::Link to an assembly, a sub-assembly of
+    the Assembly workbench, a frozen assembly), or None."""
+    t = o
+    for _i in range(20):
+        if t is None:
+            return None
+        if t.TypeId == "Assembly::AssemblyLink" or t.isDerivedFrom("Assembly::AssemblyObject"):
+            return t
+        if t.isDerivedFrom("App::Link"):
+            t = t.LinkedObject
+        else:
+            return None
+    return None
+
+
+def _node_name(a):
+    """Label and source file of a (sub-)assembly, frozen ones under their
+    original name."""
+    t = a.LinkedObject if a.TypeId == "Assembly::AssemblyLink" else a
+    if t is not None and freeze._est_fige(t):
+        return t.FigeLabel or t.Label, os.path.basename(t.FigeFichier), FROZEN
+    t = t or a
+    return t.Label, _file(t.Document), None
+
+
+def _members(a):
+    """What a (sub-)assembly holds: children of a sub-assembly or assembly,
+    frozen members of a frozen assembly."""
+    if freeze._est_conteneur_fige(a):
+        return [c for c in a.Group if freeze._est_fige(c) or freeze._est_lien_fige(c)
+                or c.TypeId == "Assembly::AssemblyLink"]
+    return _children(a)
+
+
+def collect_tree(roots, asm_doc, depth=0):
+    """Hierarchical BOM: [{"part", "source_file", "state", "quantity",
+    "children": [...]}]. Sub-assemblies are nodes holding their own rows;
+    identical rows of one level are counted together."""
+    rows, index = [], {}
+
+    def add(row):
+        key = (row["part"], row["source_file"], row["state"],
+               repr(row.get("children")))
+        if key in index:
+            index[key]["quantity"] += row["quantity"]
+        else:
+            index[key] = row
+            rows.append(row)
+
+    for r in roots:
+        if _skip(r) or depth > 30:
+            continue
+        sub = _sub_assembly(r) if depth > 0 or r.isDerivedFrom("App::Link") else None
+        if sub is not None:
+            n = max(1, getattr(r, "ElementCount", 0) or 0)
+            name, src, state = _node_name(sub)
+            linked = sub.Document is not asm_doc and state is None
+            add({"part": name, "source_file": src,
+                 "state": state or (LINKED if linked else LOCAL), "quantity": n,
+                 "children": collect_tree(_members(sub), asm_doc, depth + 1)})
+            continue
+        if depth == 0 and _sub_assembly(r) is r:     # a root assembly: its members
+            for row in collect_tree(_members(r), asm_doc, depth + 1):
+                add(row)
+            continue
+        for (name, src, state), qty in collect([r], asm_doc).items():
+            add({"part": name, "source_file": src, "state": state, "quantity": qty,
+                 "children": []})
+    rows.sort(key=lambda x: (x["part"].lower(), x["source_file"]))
+    return rows
+
+
+def flatten_tree(tree, level=1):
+    """Depth-first rows (level, row) of a hierarchical BOM."""
+    out = []
+    for row in tree:
+        out.append((level, row))
+        out += flatten_tree(row["children"], level + 1)
+    return out
+
+
+def write_csv_tree(path, tree):
+    sep = ";" if language() in ("fr", "de", "it", "es") else ","
+    state_txt = {FROZEN: tr("frozen"), LINKED: tr("linked"), LOCAL: tr("in the assembly"),
+                 LIGHT: tr("lightweight")}
+    with open(path, "w", newline="", encoding="utf-8-sig") as fh:
+        w = csv.writer(fh, delimiter=sep)
+        w.writerow([tr("Level"), tr("Quantity"), tr("Part"), tr("Source file"), tr("State")])
+        for level, row in flatten_tree(tree):
+            w.writerow([level, row["quantity"], "  " * (level - 1) + row["part"],
+                        row["source_file"], state_txt[row["state"]]])
+
+
 def roots_of(doc):
     """Top-level assemblies of `doc`, else its root objects (Std_Part file)."""
     asms = [o for o in doc.Objects if o.isDerivedFrom("Assembly::AssemblyObject")
@@ -170,6 +268,7 @@ def export(doc=None):
     doc = doc or docs.working_document()
     if doc is None:
         raise RuntimeError(tr("No active document."))
+    hierarchical = prefs.get("BomHierarchical")
     rows = api.bom(doc)
     if not rows:
         raise RuntimeError(tr("No part found in this document."))
@@ -182,7 +281,7 @@ def export(doc=None):
         return None
     if not path.lower().endswith(".csv"):
         path += ".csv"
-    api.export_bom_csv(doc, path)
+    api.export_bom_csv(doc, path, hierarchical=hierarchical)
     total = sum(r["quantity"] for r in rows)
     App.Console.PrintMessage(tr("BOM: {n} different part(s), {total} in all, written to "
                                 "{file}").format(n=len(rows), total=total, file=path) + "\n")

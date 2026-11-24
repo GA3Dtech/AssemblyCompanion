@@ -40,6 +40,7 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
+    "BomHierarchical": False,       # BOM with sub-assemblies as nodes (else flat)
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
@@ -251,6 +252,9 @@ class AssemblyCompanionPreferencePage(object):
             tr("How Freeze copies a Std_Part, an imported STEP group or a sub-assembly. "
                "Sub-assemblies of the Assembly workbench always keep their structure."))
         f.addRow(tr("Freeze containers and sub-assemblies:"), self.freeze_mode)
+        self.bom_tree = QtWidgets.QCheckBox(
+            tr("Bill of materials by sub-assembly (hierarchical, else flat)"))
+        f.addRow(self.bom_tree)
         self.leave_asm = QtWidgets.QCheckBox(
             tr("Leave the assembly edit mode when opening selection sets"))
         self.leave_asm.setToolTip(
@@ -317,6 +321,7 @@ class AssemblyCompanionPreferencePage(object):
         self.insert_new.setChecked(get("NewPartInsert"))
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
+        self.bom_tree.setChecked(get("BomHierarchical"))
         i = self.freeze_mode.findData(get("FreezeMode"))
         self.freeze_mode.setCurrentIndex(i if i >= 0 else 0)
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
@@ -345,6 +350,7 @@ class AssemblyCompanionPreferencePage(object):
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())
         put("FreezeMode", self.freeze_mode.currentData())
+        put("BomHierarchical", self.bom_tree.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
         put("SelectionSetsElements", self.sets_elements.isChecked())
         put("LightweightLodPixels", self.lod.value())
