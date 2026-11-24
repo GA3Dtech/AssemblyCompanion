@@ -181,3 +181,14 @@ the Part is saved in a new .FCStd (`file_path`, default next to the
 assembly, named after the STEP file; never overwritten) and linked;
 mode "document": the Part is created in `doc` as a component.
 -> {"mode", "file", "part", "document", "inserted", "solids"}
+
+### `extract_bodies(doc, names, folder=None, prefix=None, revision=None, replace=False, dry_run=False)`
+
+Copy each PartDesign Body `names` with its whole tree (sketches,
+features, datums, spreadsheets its expressions use) into its own new
+file PREFIX_NNNr_<label>.FCStd in `folder` (defaults: the new-part
+preferences, folder of `doc`). Binders become detached, outside
+attachments deactivated: the new files stand alone. replace=True puts a
+Link to each new part in place of the body (joints kept), one undo step.
+-> {"bodies": [{"body", "file", "copied", "standalone", "external",
+"volume", "faces", "new_volume", "new_faces"}], "replaced": [...]}

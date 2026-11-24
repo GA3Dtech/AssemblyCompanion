@@ -57,6 +57,10 @@ All notable changes to this project are documented here. The format follows
   component that cannot be frozen stays linked and is reported, and any
   error undoes the whole freeze.
 
+- Extract bodies: each selected Body goes with its whole tree to its own new
+  file (new-part naming), binders detached, outside attachments removed,
+  report of what still points outside; option to replace the bodies in the
+  assembly by the new parts (joints kept). API `extract_bodies` (dry_run).
 - Import STEP as part: the import groups of the STEP importer (App::LinkGroup)
   become Std_Parts, so every element is visible and usable for joints in
   the assembly; the Part is saved in a new FreeCAD file next to the assembly

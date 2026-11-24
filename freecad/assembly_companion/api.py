@@ -58,7 +58,7 @@ __all__ = [
     "duplicate_components", "make_lightweight", "restore_full", "new_part_from_selection",
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
-    "scan_library", "list_library", "import_step",
+    "scan_library", "list_library", "import_step", "extract_bodies",
     "AssemblyCompanionError",
 ]
 
@@ -543,6 +543,47 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  Extract bodies
+# ----------------------------------------------------------------------
+def extract_bodies(doc, names, folder=None, prefix=None, revision=None, replace=False,
+                   dry_run=False):
+    """Copy each PartDesign Body `names` with its whole tree (sketches,
+    features, datums, spreadsheets its expressions use) into its own new
+    file PREFIX_NNNr_<label>.FCStd in `folder` (defaults: the new-part
+    preferences, folder of `doc`). Binders become detached, outside
+    attachments deactivated: the new files stand alone. replace=True puts a
+    Link to each new part in place of the body (joints kept), one undo step.
+    -> {"bodies": [{"body", "file", "copied", "standalone", "external",
+    "volume", "faces", "new_volume", "new_faces"}], "replaced": [...]}"""
+    from . import extract, prefs
+    doc = _doc(doc)
+    bodies = _objs(doc, names) or []
+    for b in bodies:
+        if not b.isDerivedFrom("PartDesign::Body"):
+            raise UnsupportedObjectError(tr("{name} is not a Body.").format(name=b.Label),
+                                         name=b.Name)
+    folder = folder or prefs.get("NewPartDir") or (os.path.dirname(doc.FileName)
+                                                    if doc.FileName else None)
+    if not folder or not os.path.isdir(folder):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(path=folder or ""),
+                                  path=folder or "")
+    prefix = prefs.get("NewPartPrefix") if prefix is None else prefix
+    revision = prefs.get("NewPartRevision") if revision is None else revision
+    paths = extract.names_for(bodies, folder, prefix, prefs.get("NewPartDigits"), revision)
+    reports, replaced = [], []
+    for b, path in zip(bodies, paths):
+        reports.append(extract.extract_body(b, path, dry_run=dry_run))
+    if replace and not dry_run:
+        for b, r in zip(bodies, reports):
+            if b.getParentGeoFeatureGroup() is not None and r.get("new_body"):
+                replaced.append(extract.replace_in_assembly(doc, b, r["file"], r["new_body"]))
+    out = {"bodies": reports, "replaced": replaced}
+    if dry_run:
+        out["dry_run"] = True
+    return out
 
 
 # ----------------------------------------------------------------------

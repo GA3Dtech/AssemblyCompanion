@@ -148,6 +148,10 @@ def _insert_component():
     _module("explorer").show_insert_dock()
 
 
+def _extract_body():
+    _module("extract").extract_command()
+
+
 def _import_step():
     _module("step_import").import_command()
 
@@ -257,6 +261,11 @@ COMMANDS = {
         tr("Browse your parts folder with thumbnails and insert parts into the "
             "active assembly; source files do not need to be open."),
         needs_document=False),
+    "AssemblyCompanion_ExtractBody": _Command(
+        _extract_body, "ExtractBody.svg", tr("Extract bodies"),
+        tr("Copy each selected Body with its whole tree (sketches, features, datums, "
+           "spreadsheets) into its own new file named like the new parts; binders become "
+           "independent. Optionally replace the bodies in the assembly by the new parts.")),
     "AssemblyCompanion_ImportStep": _Command(
         _import_step, "ImportStep.svg", tr("Import STEP as part"),
         tr("Import a STEP file as one Std_Part (import groups turned into Parts, every "
@@ -277,7 +286,8 @@ COMMANDS = {
 GROUPS = [
     ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent",
                  "AssemblyCompanion_ImportStep"]),
-    ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
+    ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_ExtractBody",
+               "AssemblyCompanion_UpdateBinder",
                "AssemblyCompanion_Duplicate", "AssemblyCompanion_Replace",
                "AssemblyCompanion_SelectionSets"]),
     ("Durable", ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
