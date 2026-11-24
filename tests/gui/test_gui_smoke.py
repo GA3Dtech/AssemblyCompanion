@@ -58,7 +58,7 @@ def test_toolbar_declared_in_assembly_workbench():
     bar = grp.GetGroup(init_gui.ASM_TOOLBAR_GROUP)
     assert bar.GetString("Name") == init_gui.ASM_TOOLBAR_NAME
     keys = [k for t, k, *_ in bar.GetContents() if t == "String"]
-    for cmd in commands.TOOLBAR_DURABLE + commands.TOOLBAR_LIBRARY:
+    for cmd in [c for c in commands.TOOLBAR if c != "Separator"]:
         assert cmd in keys, cmd
 
 
@@ -88,6 +88,9 @@ def test_active_assembly_found_with_both_keys(temp_doc, key):
 
 def test_close_guard_detects_linked_source(temp_doc, tmp_path, monkeypatch):
     from freecad.assembly_companion import close_guard
+    from PySide import QtWidgets
+    for _ in range(5):              # closings of earlier tests, deferred by the guard
+        QtWidgets.QApplication.processEvents()
     calls = []
     monkeypatch.setattr(close_guard, "_guarded", lambda path, label, deps: calls.append(deps))
     guard = close_guard._CloseGuard()
@@ -105,6 +108,6 @@ def test_close_guard_detects_linked_source(temp_doc, tmp_path, monkeypatch):
         App.closeDocument(src.Name)
         from PySide import QtWidgets
         QtWidgets.QApplication.processEvents()      # the guard defers with a timer
-        assert calls and calls[0] == {asm.Name: ["L"]}
+        assert {asm.Name: ["L"]} in calls       # other closings may be reported too
     finally:
         App.removeDocumentObserver(guard)

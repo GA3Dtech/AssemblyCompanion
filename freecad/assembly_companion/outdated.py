@@ -81,10 +81,23 @@ def refreeze(doc, copies):
                 App.Console.PrintWarning(tr("Refreeze: source of “{name}” not found ({file}).")
                                          .format(name=c.Label, file=c.FigeFichier) + "\n")
                 continue
-            links = [l for l in doc.Objects if freeze._est_lien(l) and l.LinkedObject is c]
-            if freeze._est_conteneur_fige(c):
+            links = [l for l in doc.Objects
+                     if (freeze._est_lien(l) or freeze._est_assemblage_lien(l))
+                     and l.LinkedObject is c]
+            if "FigeBlocCarte" in c.PropertiesList:
+                # Block: renumber the references from the old to the new block
+                old = freeze.lire_carte(c)
+                freeze._creer_ou_rafraichir_bloc(doc, src)
+                new = freeze.lire_carte(c)
+                for l in links:
+                    freeze.appliquer_reecriture(l, fonction=lambda sub, k: (
+                        freeze.renumeroter_vers_bloc(
+                            freeze.renumeroter_depuis_bloc(sub, k, old), k, new)))
+            elif freeze._est_conteneur_fige(c):
                 freeze._creer_ou_rafraichir_conteneur(doc, src)
                 for l in links:
+                    if freeze._est_assemblage_lien(l):
+                        continue        # its children keep their names
                     # Same object names in the refreshed container: keep the
                     # paths, flush the hidden names
                     freeze.appliquer_reecriture(l, chemins={})

@@ -232,8 +232,12 @@ def build_subassembly(folder):
     lb = link(d_s, sub, b, "BlockB", App.Placement(App.Vector(0, 0, 30), App.Rotation()))
     d_s.recompute()
     ground(sub, la)
-    joint(sub, "Fixed", (la, [find_face(a.Shape, _top(30))] * 2),
-          (lb, [find_face(b.Shape, _top(0))] * 2), "Fixed")
+    joint(sub, "Revolute", (la, [find_face(a.Shape, _top(30))] * 2),
+          (lb, [find_face(b.Shape, _top(0))] * 2), "Revolute")
+    # Turned 30 degrees around the joint axis after solving: a placement the
+    # solver accepts but would not choose (a frozen copy must keep it)
+    lb.Placement = App.Placement(App.Vector(0, 0, 30), App.Rotation(App.Vector(0, 0, 1), 30),
+                                 App.Vector(15, 15, 0))
     _save(d_s, d_s.FileName)
     d_base = _new("sub_base")
     base = box_body(d_base, "Base", 100, 100, 10)
@@ -247,6 +251,133 @@ def build_subassembly(folder):
     ground(asm, l_base)
     _save(d, d.FileName)
     _close(d, d_base, d_s, d_a, d_b)
+
+
+def assembly_link(doc, asm, sub_asm, name, placement=None):
+    """Sub-assembly the way the Assembly workbench of FreeCAD 26.x inserts
+    it (Assembly::AssemblyLink, rigid). None when this FreeCAD has none."""
+    try:
+        al = doc.addObject("Assembly::AssemblyLink", name)
+    except Exception:
+        return None
+    asm.addObject(al)
+    al.Rigid = True
+    al.LinkedObject = sub_asm
+    al.Label = name
+    if placement is not None:
+        al.Placement = placement
+    doc.recompute()
+    return al
+
+
+def al_child(al, target_name):
+    """Child Link of an AssemblyLink standing for the component `target_name`."""
+    for c in al.Group:
+        if c.isDerivedFrom("App::Link") and c.LinkedObject is not None \
+                and c.LinkedObject.Name == target_name:
+            return c
+    return None
+
+
+def build_subassembly_al(folder):
+    """Three levels of sub-assemblies inserted as Assembly::AssemblyLink:
+    main > Sub (BlockA, BlockB, SubSub > Cap); a joint of the main assembly
+    goes to BlockA inside Sub."""
+    os.makedirs(folder, exist_ok=True)
+    parts = {}
+    for name, dims in (("BlockA", (30, 30, 30)), ("BlockB", (30, 30, 10)),
+                       ("Cap", (20, 20, 5)), ("Base", (100, 100, 10))):
+        d = _new("al_" + name)
+        parts[name] = (d, box_body(d, name, *dims))
+        _save(d, os.path.join(folder, name.lower() + ".FCStd"))
+    d_ss = _new("al_subsub")
+    d_ss.saveAs(os.path.join(folder, "subsub.FCStd"))
+    ss = new_assembly(d_ss, "SubSub")
+    lc = link(d_ss, ss, parts["Cap"][1], "Cap")
+    d_ss.recompute()
+    ground(ss, lc)
+    _save(d_ss, d_ss.FileName)
+    d_s = _new("al_sub")
+    d_s.saveAs(os.path.join(folder, "sub.FCStd"))
+    sub = new_assembly(d_s, "SubAssembly")
+    la = link(d_s, sub, parts["BlockA"][1], "BlockA")
+    lb = link(d_s, sub, parts["BlockB"][1], "BlockB",
+              App.Placement(App.Vector(0, 0, 30), App.Rotation()))
+    d_s.recompute()
+    ground(sub, la)
+    joint(sub, "Fixed", (la, [find_face(parts["BlockA"][1].Shape, _top(30))] * 2),
+          (lb, [find_face(parts["BlockB"][1].Shape, _top(0))] * 2), "Fixed")
+    if assembly_link(d_s, sub, ss, "SubSub",
+                     App.Placement(App.Vector(5, 5, 40), App.Rotation())) is None:
+        _close(d_s, d_ss, *[v[0] for v in parts.values()])
+        return False
+    _save(d_s, d_s.FileName)
+    d = _new("al_main")
+    d.saveAs(os.path.join(folder, "main.FCStd"))
+    asm = new_assembly(d)
+    base = parts["Base"][1]
+    l_base = link(d, asm, base, "Base")
+    d.recompute()
+    ground(asm, l_base)
+    al = assembly_link(d, asm, sub, "Sub", App.Placement(App.Vector(10, 10, 10), App.Rotation()))
+    child = al_child(al, "BlockA")
+    joint(asm, "Fixed", (l_base, [find_face(base.Shape, _top(10))] * 2),
+          (al, [child.Name + "." + find_face(parts["BlockA"][1].Shape, _top(0))] * 2),
+          "BaseToSub")
+    _save(d, d.FileName)
+    _close(d, d_s, d_ss, *[v[0] for v in parts.values()])
+    return True
+
+
+def build_step_group(folder):
+    """A Std_Part holding imported STEP groups (App::LinkGroup): one with its
+    solids inside (headless importer), one with Links to solids kept at the
+    document root (GUI importer), next to a Body; a joint of the assembly
+    goes to an element of the first group."""
+    import Part
+    os.makedirs(folder, exist_ok=True)
+    d_src = _new("step_src")
+    grp = d_src.addObject("App::Part", "Group001")
+    g1 = d_src.addObject("App::LinkGroup", "LinkGroup")
+    g1.Label = "MD650"
+    boitier = d_src.addObject("Part::Feature", "Solid")
+    boitier.Label = "Boitier"
+    boitier.Shape = Part.makeBox(10, 20, 5)
+    fil = d_src.addObject("Part::Feature", "Solid001")
+    fil.Label = "Fil_plus_rouge"
+    fil.Shape = Part.makeCylinder(1, 30, App.Vector(2, 2, 5))
+    g1.ElementList = [boitier, fil]
+    g1.Placement = App.Placement(App.Vector(0, 0, 10), App.Rotation())
+    ame = d_src.addObject("Part::Feature", "Ame")
+    ame.Label = "Ame_plus"
+    ame.Shape = Part.makeBox(2, 2, 8)
+    g2 = d_src.addObject("App::LinkGroup", "LinkGroup001")
+    g2.Label = "MD650_links"
+    elems = []
+    for i in range(2):
+        lk = d_src.addObject("App::Link", "AmeLink%d" % i)
+        lk.setLink(ame)
+        lk.Placement = App.Placement(App.Vector(20 + 5 * i, 0, 0), App.Rotation())
+        elems.append(lk)
+    g2.ElementList = elems
+    beam = box_body(d_src, "Beam", 100, 10, 10)
+    for o in (g1, g2, beam):
+        grp.addObject(o)
+    _save(d_src, os.path.join(folder, "pieces.FCStd"))
+    d_plate = _new("step_plate")
+    plate = box_body(d_plate, "Plate", 120, 60, 10)
+    _save(d_plate, os.path.join(folder, "plate.FCStd"))
+    d = _new("step_main")
+    d.saveAs(os.path.join(folder, "assembly.FCStd"))
+    asm = new_assembly(d)
+    lp = link(d, asm, plate, "Plate")
+    lg = link(d, asm, grp, "Group", App.Placement(App.Vector(0, 0, 10), App.Rotation()))
+    d.recompute()
+    ground(asm, lp)
+    joint(asm, "Fixed", (lp, [find_face(plate.Shape, _top(10))] * 2),
+          (lg, ["LinkGroup.Solid." + find_face(boitier.Shape, _top(0))] * 2), "PlateToBoitier")
+    _save(d, d.FileName)
+    _close(d, d_plate, d_src)
 
 
 def build_collisions(folder):
@@ -357,6 +488,23 @@ def build_states(root):
     _save(d, d.FileName)
     _close(*App.listDocuments().values())
 
+    # frozen sub-assemblies (App::Link and Assembly::AssemblyLink) and
+    # frozen imported STEP groups, as structure and as one block
+    for src, dst, name, mode in (("subassembly", "state_subassembly_frozen", "main.FCStd",
+                                  "structure"),
+                                 ("subassembly_al", "state_subassembly_al_frozen", "main.FCStd",
+                                  "structure"),
+                                 ("step_group", "state_step_frozen", "assembly.FCStd",
+                                  "structure"),
+                                 ("step_group", "state_step_block", "assembly.FCStd", "block")):
+        if not os.path.isfile(os.path.join(root, src, name)):
+            continue                    # no AssemblyLink in this FreeCAD
+        _copy(os.path.join(root, src), os.path.join(root, dst))
+        d, asm = open_asm(dst, name)
+        freeze.figer(d, None, mode=mode)
+        _save(d, d.FileName)
+        _close(*App.listDocuments().values())
+
 
 def build_all(out, states=True):
     """Build every project (and the addon states) under `out`."""
@@ -367,6 +515,8 @@ def build_all(out, states=True):
     build_collisions(os.path.join(out, "collisions"))
     build_revisions(os.path.join(out, "revisions"))
     build_link_array(os.path.join(out, "link_array"))
+    build_subassembly_al(os.path.join(out, "subassembly_al"))
+    build_step_group(os.path.join(out, "step_group"))
     if states:
         build_states(out)
     return out

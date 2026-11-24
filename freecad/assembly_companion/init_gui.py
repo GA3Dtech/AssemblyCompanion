@@ -1,4 +1,20 @@
+# -*- coding: utf-8 -*-
 # SPDX-License-Identifier: LGPL-2.1-or-later
+# Assembly Companion - workbench registration
+# Copyright (C) 2026 GA3Dtech
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or (at
+# your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <https://www.gnu.org/licenses/>.
 """
 init_gui.py (Assembly Companion) - registers the workbench, its commands, and
 (optionally) adds its tools to the toolbar area of FreeCAD's built-in Assembly
@@ -38,8 +54,7 @@ class AssemblyCompanionWorkbench(Gui.Workbench):
     Icon = icon("AssemblyCompanion.svg")
 
     def Initialize(self):
-        self.appendToolbar("Companion - Durable", commands.TOOLBAR_DURABLE)
-        self.appendToolbar("Companion - Library", commands.TOOLBAR_LIBRARY)
+        self.appendToolbar("Assembly Companion", commands.TOOLBAR)
         self.appendMenu("Assembly Companion", commands.MENU)
 
     def Activated(self):
@@ -84,7 +99,7 @@ def sync_assembly_toolbar():
     bar = grp.GetGroup(ASM_TOOLBAR_GROUP)
     bar.SetString("Name", ASM_TOOLBAR_NAME)
     bar.SetBool("Active", active)
-    cmds = commands.TOOLBAR_DURABLE + ["Separator"] + commands.TOOLBAR_LIBRARY
+    cmds = commands.TOOLBAR
     for i, cmd in enumerate(cmds):
         if cmd == "Separator":
             bar.SetString("Separator%d" % i, "")

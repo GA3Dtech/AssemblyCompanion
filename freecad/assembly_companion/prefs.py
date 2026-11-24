@@ -40,6 +40,12 @@ DEFAULTS = {
     "Language": "auto",
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
+    "BomHierarchical": False,       # BOM with sub-assemblies as nodes (else flat)
+    "StepImportMode": "file",       # Import STEP as part: "file" or "document" (last used)
+    "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
+    "ExplorerFavorites": "[]",      # JSON list of favourite folders (pinned on top)
+    "ExplorerTags": "{}",           # JSON {path: emoji or #tag} shown on thumbnails
+    "ExplorerCacheDir": "",         # explorer cache folder ("" = FreeCAD's user cache)
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
@@ -215,6 +221,15 @@ class AssemblyCompanionPreferencePage(object):
         clear.clicked.connect(self._clear_cache)
         h.addWidget(clear)
         f.addRow(tr("Explorer cache:"), row)
+        self.cache_dir = _FolderField(self.form, tr("Explorer cache folder"))
+        self.cache_dir.edit.setPlaceholderText(tr("Empty: FreeCAD's user cache folder"))
+        self.cache_dir.edit.setToolTip(
+            tr("Folder of the thumbnails and folder scans of the explorer. Choose a folder "
+               "that is not emptied by the system (temporary folders, company policies)."))
+        f.addRow(tr("Cache folder:"), self.cache_dir.widget)
+        clear_favs = QtWidgets.QPushButton(tr("Clear the favorites and tags of the explorer"))
+        clear_favs.clicked.connect(self._clear_favorites)
+        f.addRow(clear_favs)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -243,6 +258,16 @@ class AssemblyCompanionPreferencePage(object):
         f = QtWidgets.QFormLayout(g)
         self.freeze_insert = QtWidgets.QCheckBox(tr("Freeze parts on visual insertion"))
         f.addRow(self.freeze_insert)
+        self.freeze_mode = QtWidgets.QComboBox()
+        self.freeze_mode.addItem(tr("Keep their structure (parts, names, joints)"), "structure")
+        self.freeze_mode.addItem(tr("One solid per component (lighter, rigid)"), "block")
+        self.freeze_mode.setToolTip(
+            tr("How Freeze copies a Std_Part, an imported STEP group or a sub-assembly. "
+               "Sub-assemblies of the Assembly workbench always keep their structure."))
+        f.addRow(tr("Freeze containers and sub-assemblies:"), self.freeze_mode)
+        self.bom_tree = QtWidgets.QCheckBox(
+            tr("Bill of materials by sub-assembly (hierarchical, else flat)"))
+        f.addRow(self.bom_tree)
         self.leave_asm = QtWidgets.QCheckBox(
             tr("Leave the assembly edit mode when opening selection sets"))
         self.leave_asm.setToolTip(
@@ -274,6 +299,40 @@ class AssemblyCompanionPreferencePage(object):
         lay.addWidget(g)
         lay.addStretch(1)
 
+    def _change_cache_dir(self, new):
+        """New cache folder: offer to move the existing cache there, or to
+        start with an empty one (thumbnails rebuilt at the next scan)."""
+        from . import library
+        old_pref = get("ExplorerCacheDir")
+        if new == old_pref:
+            return
+        old = old_pref or library.default_cache_dir()
+        target = new or library.default_cache_dir()
+        put("ExplorerCacheDir", new)
+        if library.norm(old) == library.norm(target) or not os.path.isdir(old):
+            return
+        QtWidgets = _qt()
+        box = QtWidgets.QMessageBox(self.form)
+        box.setWindowTitle(tr("Explorer cache"))
+        box.setText(tr("The cache folder changed. Move the existing cache ({size}) to the new "
+                       "folder, or start with an empty cache?").format(
+            size=library.human_size(library._tree_size(old)[0])))
+        move = box.addButton(tr("Move"), QtWidgets.QMessageBox.AcceptRole)
+        box.addButton(tr("Start empty"), QtWidgets.QMessageBox.RejectRole)
+        run = getattr(box, "exec", None) or box.exec_
+        run()
+        if box.clickedButton() is move:
+            library.move_cache(old, target)
+
+    def _clear_favorites(self):
+        from . import library
+        QtWidgets = _qt()
+        r = QtWidgets.QMessageBox.question(
+            self.form, tr("Explorer"), tr("Remove every favorite folder and every tag?"),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+        if r == QtWidgets.QMessageBox.Yes:
+            library.clear_favorites_and_tags()
+
     def _show_cache(self):
         from . import library
         info = library.cache_info()
@@ -298,6 +357,7 @@ class AssemblyCompanionPreferencePage(object):
         self.use_qml.setChecked(get("UseQmlPanels"))
         self.master_dir.edit.setText(get("LocalMasterDir"))
         self.new_dir.edit.setText(get("NewPartDir"))
+        self.cache_dir.edit.setText(get("ExplorerCacheDir"))
         self._show_cache()
         i = self.full_scan.findData(get("ExplorerFullScan"))
         self.full_scan.setCurrentIndex(i if i >= 0 else 0)
@@ -309,6 +369,9 @@ class AssemblyCompanionPreferencePage(object):
         self.insert_new.setChecked(get("NewPartInsert"))
         self.switch_wb.setChecked(get("NewPartSwitchWorkbench"))
         self.freeze_insert.setChecked(get("FreezeOnInsert"))
+        self.bom_tree.setChecked(get("BomHierarchical"))
+        i = self.freeze_mode.findData(get("FreezeMode"))
+        self.freeze_mode.setCurrentIndex(i if i >= 0 else 0)
         self.leave_asm.setChecked(get("LeaveAssemblyForSelectionSets"))
         self.sets_elements.setChecked(get("SelectionSetsElements"))
         self.lod.setValue(get("LightweightLodPixels"))
@@ -327,6 +390,7 @@ class AssemblyCompanionPreferencePage(object):
         put("LocalMasterDir", new)
         put("NewPartDir", self.new_dir.edit.text().strip())
         put("ExplorerFullScan", self.full_scan.currentData())
+        self._change_cache_dir(self.cache_dir.edit.text().strip())
         put("NewPartPrefix", self.prefix.text().strip())
         put("NewPartDigits", self.digits.value())
         put("NewPartRevision", self.revision.text().strip())
@@ -334,6 +398,8 @@ class AssemblyCompanionPreferencePage(object):
         put("NewPartInsert", self.insert_new.isChecked())
         put("NewPartSwitchWorkbench", self.switch_wb.isChecked())
         put("FreezeOnInsert", self.freeze_insert.isChecked())
+        put("FreezeMode", self.freeze_mode.currentData())
+        put("BomHierarchical", self.bom_tree.isChecked())
         put("LeaveAssemblyForSelectionSets", self.leave_asm.isChecked())
         put("SelectionSetsElements", self.sets_elements.isChecked())
         put("LightweightLodPixels", self.lod.value())

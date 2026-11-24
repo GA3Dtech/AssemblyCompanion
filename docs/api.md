@@ -4,7 +4,8 @@
      in freecad/assembly_companion/api.py, then run the tool. -->
 
 `freecad/assembly_companion/api.py` is the stable entry point for scripts,
-agents and the FreeCAD MCP server. It is headless-safe (no dialog, no active
+macros and other addons (a third-party MCP addon may call it too). It is
+headless-safe (no dialog, no active
 view), takes the document explicitly (object, internal name or label),
 objects by internal name and files by path, and returns plain data accepted
 by `json.dumps`. Functions that change a document accept `dry_run=True`.
@@ -26,7 +27,7 @@ API version: **1** (incremented at every breaking change).
 ### `describe()`
 
 Catalogue of the public functions: name, docstring, parameters with
-their defaults, for an agent to discover the API on its own.
+their defaults, for a script to discover the API on its own.
 
 ### `list_components(doc)`
 
@@ -34,10 +35,15 @@ Components of the assemblies of `doc` (Links and parts directly in an
 assembly): name, label, state (frozen / linked / local / lightweight /
 broken), source file, joints using them.
 
-### `freeze_parts(doc, names=None, dry_run=False)`
+### `freeze_parts(doc, names=None, dry_run=False, mode='structure')`
 
-Freeze the Links `names` (internal names; None = every external Link):
-each one points to a dead BREP copy stored in the document.
+Freeze the Links and sub-assemblies `names` (internal names; None =
+every external one): each one points to a dead BREP copy stored in the
+document. Containers (Std_Part, STEP import groups) and sub-assemblies
+are frozen with their parts, names, placements and joints (mode
+"structure"), or as ONE solid per Link (mode "block"). A Link whose
+content cannot be frozen is left linked and listed in "skipped"; one
+undo step, nothing changed when an error occurs.
 -> {"frozen": [...], "skipped": [{"name", "reason"}], "refs_updated": n}
 
 ### `relink_parts(doc, names=None, dry_run=False)`
@@ -67,15 +73,18 @@ Frozen parts and the state of their source file.
 Refreeze the frozen copies `names` (None = every outdated one) from
 their saved source file. -> {"refrozen": [...]}
 
-### `bom(doc)`
+### `bom(doc, hierarchical=False)`
 
 Bill of materials of `doc`, frozen parts under their original name.
--> [{"quantity", "part", "source_file", "state"}] sorted by part
+Flat: [{"quantity", "part", "source_file", "state"}] sorted by part, the
+parts of sub-assemblies counted in. hierarchical=True: sub-assemblies
+are rows of their own with their parts in "children" (same keys,
+recursively).
 
-### `export_bom_csv(doc, path)`
+### `export_bom_csv(doc, path, hierarchical=False)`
 
-Write the bill of materials of `doc` to the CSV file `path`.
--> {"path", "rows"}
+Write the bill of materials of `doc` to the CSV file `path` (with a
+"Level" column when hierarchical). -> {"path", "rows"}
 
 ### `check_collisions(doc, skip_fasteners=True, show=False)`
 
@@ -162,3 +171,24 @@ disk cache of the library is updated with the result.
 Parts library as last seen by the explorer (disk cache, no folder
 walk: instant on a network share); scans it when there is no cache.
 Same return value as scan_library().
+
+### `import_step(doc, step_path, assembly=None, mode='file', file_path=None, insert=True)`
+
+Import the STEP file `step_path` as one Std_Part (import groups turned
+into Parts: every element visible and usable for joints) and insert it
+into `assembly` (name; None = the first assembly of `doc`). mode "file":
+the Part is saved in a new .FCStd (`file_path`, default next to the
+assembly, named after the STEP file; never overwritten) and linked;
+mode "document": the Part is created in `doc` as a component.
+-> {"mode", "file", "part", "document", "inserted", "solids"}
+
+### `extract_bodies(doc, names, folder=None, prefix=None, revision=None, replace=False, dry_run=False)`
+
+Copy each PartDesign Body `names` with its whole tree (sketches,
+features, datums, spreadsheets its expressions use) into its own new
+file PREFIX_NNNr_<label>.FCStd in `folder` (defaults: the new-part
+preferences, folder of `doc`). Binders become detached, outside
+attachments deactivated: the new files stand alone. replace=True puts a
+Link to each new part in place of the body (joints kept), one undo step.
+-> {"bodies": [{"body", "file", "copied", "standalone", "external",
+"volume", "faces", "new_volume", "new_faces"}], "replaced": [...]}

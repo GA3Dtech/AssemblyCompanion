@@ -1,5 +1,20 @@
 # -*- coding: utf-8 -*-
 # SPDX-License-Identifier: LGPL-2.1-or-later
+# Assembly Companion - freeze / relink
+# Copyright (C) 2026 GA3Dtech
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or (at
+# your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <https://www.gnu.org/licenses/>.
 """
 freeze.py (Assembly Companion) - Freeze / relink components of an assembly made with
 FreeCAD's built-in Assembly workbench, A2plus style.
@@ -47,6 +62,7 @@ GROUPE_INUTILES = "Solides_figes_inutilises"   # sub-group: copies no Link uses
 
 # Matches the trailing element of a subname: "...Face6", "...Edge12", "...Vertex3"
 _RE_ELEM = re.compile(r'(?:^|\.)((?:Face|Edge|Vertex)\d+)$')
+_RE_ELEM_NUM = re.compile(r'^(Face|Edge|Vertex)(\d+)$')
 
 
 # --------------------------------------------------------------------------
@@ -139,6 +155,43 @@ def _est_fige(o):
     return _est_copie_figee(o) or _est_conteneur_fige(o)
 
 
+def _est_lien_fige(o):
+    """Link made by the freeze inside a frozen container (component of a
+    frozen sub-assembly, element of an imported STEP group), or a shared
+    frozen copy of a source Link (Link to a Link)."""
+    return o is not None and _est_lien(o) and 'FigeObjet' in o.PropertiesList
+
+
+def _est_assemblage_obj(o):
+    return o is not None and o.isDerivedFrom('Assembly::AssemblyObject')
+
+
+def _est_assemblage_lien(o):
+    """Sub-assembly inserted by the Assembly workbench of FreeCAD 26.x: an
+    App::Part whose children are Links to the components of LinkedObject."""
+    return o is not None and o.TypeId == 'Assembly::AssemblyLink'
+
+
+def _parent_assemblage_lien(o):
+    """Outermost sub-assembly holding `o` (sub-assemblies mirror their
+    nested sub-assemblies as nested Assembly::AssemblyLink children), or
+    None."""
+    racine, cur = None, o
+    for _i in range(30):
+        p = None
+        for q in cur.InList:
+            if _est_assemblage_lien(q) and cur in q.Group:
+                p = q
+        if p is None:
+            break
+        racine = cur = p
+    return racine
+
+
+def _est_assemblage_lien_fige(o):
+    return _est_assemblage_lien(o) and 'FigeObjet' in o.PropertiesList
+
+
 def _conteneur_racine(o):
     """Outermost frozen container holding `o`, or None."""
     racine = None
@@ -151,16 +204,41 @@ def _conteneur_racine(o):
 
 
 def liens_externes(doc, selection=None):
-    """Links pointing to another document (candidates for freezing)."""
+    """Links and sub-assemblies (Assembly::AssemblyLink) pointing to another
+    document: the candidates for freezing. The children of a sub-assembly
+    are frozen with it, never one by one."""
     objs = doc.Objects if selection is None else selection
-    return [o for o in objs if _est_lien(o) and o.LinkedObject is not None
-            and o.LinkedObject.Document is not doc]
+    out = []
+    for o in objs:
+        al = _parent_assemblage_lien(o) if (_est_lien(o) or _est_assemblage_lien(o)) else None
+        if al is not None:
+            o = al                      # a component picked inside a sub-assembly
+        if o in out or not (_est_lien(o) or _est_assemblage_lien(o)):
+            continue
+        if _est_lien_fige(o) or _est_assemblage_lien_fige(o) or o.LinkedObject is None:
+            continue
+        if o.LinkedObject.Document is not doc:
+            out.append(o)
+    return out
 
 
 def liens_figes(doc, selection=None):
-    """Links pointing to a frozen copy or container (candidates for relinking)."""
+    """Links and sub-assemblies pointing to a frozen copy or container (the
+    candidates for relinking); Links made by the freeze inside frozen
+    containers follow their container."""
     objs = doc.Objects if selection is None else selection
-    return [o for o in objs if _est_lien(o) and _est_fige(o.LinkedObject)]
+    out = []
+    for o in objs:
+        al = _parent_assemblage_lien(o) if (_est_lien(o) or _est_assemblage_lien(o)) else None
+        if al is not None:
+            o = al
+        if o in out or _est_assemblage_lien_fige(o):
+            continue
+        if _est_lien(o) and not _est_lien_fige(o) and _est_fige(o.LinkedObject):
+            out.append(o)
+        elif _est_assemblage_lien(o) and _est_conteneur_fige(o.LinkedObject):
+            out.append(o)
+    return out
 
 
 def _index_lien(base, objets, lien):
@@ -233,10 +311,13 @@ def references_via(lien):
     return res
 
 
-def appliquer_reecriture(lien, remap=None, nouvelle_cible=None, chemins=None):
+def appliquer_reecriture(lien, remap=None, nouvelle_cible=None, chemins=None,
+                         fonction=None):
     """Rewrite every reference going through `lien`, after optionally
     retargeting the Link. With `chemins` (Link to an App::Part container),
-    the path inside the target is translated instead of dropped. Each reference is CLEARED then written again, even
+    the path inside the target is translated instead of dropped; with
+    `fonction(sub, k)` (frozen blocks) each subname is rewritten by it.
+    Each reference is CLEARED then written again, even
     when its text does not change: otherwise FreeCAD keeps internally the
     topological name computed on the previous target, saves it, and cannot
     resolve it on reopening (element marked '?', broken joint).
@@ -250,8 +331,12 @@ def appliquer_reecriture(lien, remap=None, nouvelle_cible=None, chemins=None):
     for (o, p, t), items in par_prop.items():
         refs = _lire(o, p, t)
         for i, j, k, sub in items:
-            refs[i][1][j] = (reecrire_sub_chemins(sub, k, chemins) if chemins is not None
-                             else reecrire_sub(sub, k, remap))
+            if fonction is not None:
+                refs[i][1][j] = fonction(sub, k)
+            elif chemins is not None:
+                refs[i][1][j] = reecrire_sub_chemins(sub, k, chemins)
+            else:
+                refs[i][1][j] = reecrire_sub(sub, k, remap)
             n += 1
         try:
             setattr(o, p, [] if 'List' in t else None)   # flush hidden names
@@ -375,11 +460,17 @@ def _creer_ou_rafraichir_copie(doc, src, parent=None):
     # Use the shape SAVED in the source file: no recompute, version independent.
     # The shape carries the placement of `src` (position inside its Part).
     copie.Shape = forme_propre(src.Shape)
-    copie.Label = 'Fige_' + src.Label
+    copie.Label = 'Fige_' + src.Label if parent is None else src.Label
     _proprietes_figeage(copie, src, doc)
+    try:
+        # Hidden in Solides_figes (the Link displays it); inside a frozen
+        # container visible like the source (a Link to a container only
+        # shows its visible children)
+        copie.Visibility = parent is not None and bool(src.Visibility)
+    except Exception:
+        pass
     if App.GuiUp:
         try:
-            copie.ViewObject.Visibility = parent is not None
             if hasattr(src, 'ViewObject') and src.ViewObject:
                 copie.ViewObject.ShapeAppearance = src.ViewObject.ShapeAppearance
         except Exception:
@@ -388,8 +479,19 @@ def _creer_ou_rafraichir_copie(doc, src, parent=None):
 
 
 # --------------------------------------------------------------------------
-#  FREEZE an App::Part container
+#  FREEZE containers: Parts, assemblies, sub-assemblies, imported STEP groups
 # --------------------------------------------------------------------------
+# A container is frozen member by member into a container of the same kind
+# (an Assembly gives an Assembly, with its joints; a Part, a STEP LinkGroup
+# or a plain group give an App::Part). A member that is a Link (component
+# of a sub-assembly, element of a STEP group) becomes a Link of the frozen
+# container, same label and placement, to a frozen copy of its target; the
+# copies of linked objects are shared and stored hidden in Solides_figes.
+# The returned path mapping keeps the joint references going through the
+# container valid.
+
+MODES = ("structure", "block")
+
 
 def _enfants_directs(part):
     """Children of an App::Part that are not consumed by a sibling (e.g. the
@@ -397,7 +499,8 @@ def _enfants_directs(part):
     groupe = list(part.Group)
     noms = set(c.Name for c in groupe)
     return [c for c in groupe
-            if not any(p.Name in noms for p in c.InList if p is not part)]
+            if not any(p.Name in noms and p.Document is part.Document
+                       for p in c.InList if p is not part)]
 
 
 def _est_solide(o):
@@ -417,59 +520,463 @@ def _chemins_origine(origine_src, origine_copie):
                 for f in origine_src.OriginFeatures if f.Role in par_role)
     return {origine_src.Name: (origine_copie.Name, sous)}
 
+# Member types that carry no geometry of their own (joints are copied apart)
+_IGNORES = ('App::Origin', 'App::VarSet', 'Spreadsheet::Sheet', 'App::TextDocument')
+
+
+def _est_groupe_source(o):
+    """Containers whose members are frozen one by one."""
+    if o is None or _est_assemblage_lien(o):
+        return False
+    return o.TypeId in ('App::LinkGroup', 'App::DocumentObjectGroup') or \
+        o.isDerivedFrom('App::Part')
+
+
+def _membres(src):
+    """Members of a container: the ElementList of a STEP LinkGroup, the
+    Group of a Part / assembly / group minus what a sibling consumes (tools
+    of a boolean). Joints and members without geometry are left out FIRST:
+    in an assembly the joints reference every component, which would then
+    look consumed."""
+    if src.TypeId == 'App::LinkGroup':
+        return list(src.ElementList)
+    groupe = [c for c in src.Group if not _ignore(c)]
+    noms = set(c.Name for c in groupe)
+    # same document only: a Link of another file may carry a sibling's name
+    return [c for c in groupe
+            if not any(p.Name in noms and p.Document is src.Document
+                       for p in c.InList if p is not src)]
+
+
+def _ignore(o):
+    """Members without geometry of their own: origin, joints, assembly
+    helper groups, spreadsheets, selection sets..."""
+    if o.TypeId in _IGNORES:
+        return True
+    if o.TypeId.startswith('Assembly::') and not _est_assemblage_obj(o) and \
+            not _est_assemblage_lien(o):
+        return True                     # JointGroup, ViewGroup, BomGroup...
+    props = o.PropertiesList
+    if 'JointType' in props or 'ObjectToGround' in props or 'SelectionSetMembers' in props:
+        return True
+    return not (_est_lien(o) or _est_groupe_source(o) or _est_assemblage_lien(o)
+                or o.isDerivedFrom('Part::Feature'))
+
+
+def _forme_ok(o):
+    try:
+        return not o.Shape.isNull()
+    except Exception:
+        return False
+
+
+def obstacles(src, profondeur=0):
+    """Why `src` (target of a Link, or a member) cannot be frozen: a list of
+    readable reasons, empty when everything inside can. Checked BEFORE any
+    change, so that nothing is ever half frozen."""
+    if profondeur > 30:
+        return [tr("{name}: nesting too deep").format(name=src.Label)]
+    if src is None:
+        return [tr("missing target")]
+    if _est_lien(src):
+        if src.LinkedObject is None:
+            return [tr("{name}: broken link (no target)").format(name=src.Label)]
+        return obstacles(src.LinkedObject, profondeur + 1)
+    if _est_assemblage_lien(src):
+        if src.LinkedObject is None:
+            return [tr("{name}: sub-assembly without its assembly").format(name=src.Label)]
+        return obstacles(src.LinkedObject, profondeur + 1)
+    if _est_groupe_source(src):
+        out = []
+        for m in _membres(src):
+            if not _ignore(m):
+                out += obstacles(m, profondeur + 1)
+        return out
+    if src.isDerivedFrom('Part::Feature'):
+        return [] if _forme_ok(src) or src.isDerivedFrom('PartDesign::Body') else \
+            [tr("{name}: empty shape").format(name=src.Label)]
+    return [tr("{name}: type {type} not supported").format(name=src.Label, type=src.TypeId)]
+
+
+def _copier_proprietes_lien(dst, src):
+    """Placement, transform and array settings of a Link (or the Placement
+    of a sub-assembly) onto the frozen Link."""
+    for p in ('Placement', 'LinkTransform', 'ScaleVector', 'ElementCount', 'PlacementList',
+              'ScaleList', 'VisibilityList'):
+        if p in src.PropertiesList and p in dst.PropertiesList:
+            try:
+                setattr(dst, p, getattr(src, p))
+            except Exception:
+                pass
+    try:
+        dst.Visibility = src.Visibility
+    except Exception:
+        pass
+    if App.GuiUp:                       # colour overrides (STEP import)
+        try:
+            vs, vd = src.ViewObject, dst.ViewObject
+            for p in ('OverrideMaterial', 'ShapeMaterial', 'ShapeAppearance',
+                      'OverrideMaterialList', 'MaterialList', 'OverrideColorList'):
+                if vs is not None and vd is not None and p in vs.PropertiesList \
+                        and p in vd.PropertiesList:
+                    setattr(vd, p, getattr(vs, p))
+        except Exception:
+            pass
+
+
+def _trouver_lien_fige(doc, src, parent):
+    nom = os.path.basename(src.Document.FileName or '')
+    for o in (parent.Group if parent is not None else doc.Objects):
+        if _est_lien_fige(o) and o.FigeObjet == src.Name and \
+                os.path.basename(o.FigeFichier) == nom and \
+                o.getParentGeoFeatureGroup() is parent:
+            return o
+    return None
+
+
+def _lien_fige(doc, src, cible, parent):
+    """Frozen Link standing for the source Link / sub-assembly `src`, inside
+    the frozen container `parent` (or shared and hidden in Solides_figes
+    when parent is None), pointing to the frozen `cible`."""
+    lk = _trouver_lien_fige(doc, src, parent)
+    if lk is None:
+        lk = doc.addObject('App::Link', 'Fige_' + src.Name)
+        if parent is None:
+            _groupe(doc, GROUPE_COPIES).addObject(lk)
+        else:
+            parent.addObject(lk)
+    lk.LinkedObject = cible
+    _copier_proprietes_lien(lk, src)
+    lk.Label = src.Label if parent is not None else 'Fige_' + src.Label
+    _proprietes_figeage(lk, src, doc)
+    if parent is None:
+        try:
+            lk.Visibility = False
+        except Exception:
+            pass
+    return lk
+
+
+def _assemblage_lien_fige(doc, src, fa, parent):
+    """Frozen sub-assembly standing for the nested sub-assembly `src`
+    inside the frozen assembly `parent`: an Assembly::AssemblyLink to `fa`
+    (same kind as the source, so that the sub-assemblies mirroring it in
+    the main assembly can be pointed to it), or a frozen Link when the
+    document is not saved yet (an AssemblyLink needs its file)."""
+    if not doc.FileName:
+        return _lien_fige(doc, src, fa, parent)
+    nal = None
+    for o in parent.Group:
+        if _est_assemblage_lien_fige(o) and o.FigeObjet == src.Name:
+            nal = o
+    if nal is None:
+        nal = doc.addObject('Assembly::AssemblyLink', 'Fige_' + src.Name)
+        parent.addObject(nal)
+    nal.Rigid = getattr(src, 'Rigid', True)
+    if nal.LinkedObject is not fa:
+        nal.LinkedObject = fa
+    nal.Placement = src.Placement
+    nal.Label = src.Label
+    _proprietes_figeage(nal, src, doc)
+    nal.recompute()                     # creates its children (needed for the paths)
+    return nal
+
+
+def copie_cible(doc, cible):
+    """Frozen equivalent of the target of a Link: (frozen object, path
+    mapping for the references going through it, None for a leaf)."""
+    if _est_lien(cible):                # Link to a Link: keep the chain
+        c, chemins = copie_cible(doc, cible.LinkedObject)
+        return _lien_fige(doc, cible, c, None), chemins
+    if _est_groupe_source(cible):
+        return _creer_ou_rafraichir_conteneur(doc, cible)
+    if cible.isDerivedFrom('Part::Feature'):
+        return _creer_ou_rafraichir_copie(doc, cible), None
+    raise RuntimeError(tr("{name}: type {type} not supported").format(
+        name=cible.Label, type=cible.TypeId))
+
+
+def _figer_membre(doc, m, cont):
+    """Frozen equivalent of the member `m` inside the frozen container
+    `cont`: (object, path mapping), or None for members without geometry."""
+    if _ignore(m):
+        return None
+    if _est_assemblage_lien(m):
+        # Nested sub-assembly: a sub-assembly of the frozen assembly (a Link
+        # when this document has no file yet), pointing to the frozen copy
+        # of its assembly; its children are mapped to the source children
+        fa, ch = _creer_ou_rafraichir_conteneur(doc, m.LinkedObject)
+        nal = _assemblage_lien_fige(doc, m, fa, cont)
+        sous = {}
+        if _est_lien(nal):
+            for c in m.Group:
+                t = c.LinkedObject if _est_lien(c) else None
+                if t is not None and t.Name in ch:
+                    sous[c.Name] = ch[t.Name]
+        else:
+            par_source = dict((getattr(c.LinkedObject, 'FigeObjet', None), c)
+                              for c in nal.Group if getattr(c, 'LinkedObject', None) is not None)
+            for c in m.Group:
+                t = getattr(c, 'LinkedObject', None)
+                if t is not None and t.Name in par_source:
+                    sous[c.Name] = (par_source[t.Name].Name, None)
+        return nal, sous
+    if _est_lien(m):
+        c, chemins = copie_cible(doc, m.LinkedObject)
+        return _lien_fige(doc, m, c, cont), chemins
+    if _est_groupe_source(m):
+        return _creer_ou_rafraichir_conteneur(doc, m, cont)
+    return _creer_ou_rafraichir_copie(doc, m, cont), None
+
 
 def _creer_ou_rafraichir_conteneur(doc, src, parent=None):
-    """Frozen copy of the App::Part `src`: an App::Part holding a frozen copy
-    of each Body / solid at its place (nested Parts are frozen recursively).
-    Returns (container, path mapping source name -> copy name) used to
-    rewrite the joint references going through the container."""
+    """Frozen copy of the container `src` (App::Part, Assembly, STEP
+    LinkGroup, group), members frozen recursively. Returns (container, path
+    mapping source name -> copy name) used to rewrite the joint references
+    going through the container."""
+    assemblage = _est_assemblage_obj(src)
     cont = _trouver_copie(doc, src, parent, test=_est_conteneur_fige)
+    if cont is not None and _est_assemblage_obj(cont) != assemblage:
+        _supprimer_fige(doc, cont)      # kind changed in the source
+        cont = None
     if cont is None:
-        cont = doc.addObject('App::Part', 'Fige_' + src.Name)
+        cont = doc.addObject('Assembly::AssemblyObject' if assemblage else 'App::Part',
+                             'Fige_' + src.Name)
         if parent is None:
             _groupe(doc, GROUPE_COPIES).addObject(cont)
         else:
             parent.addObject(cont)
-    cont.Label = 'Fige_' + src.Label
-    cont.Placement = src.Placement      # matters for nested Parts only
+    cont.Label = 'Fige_' + src.Label if parent is None else src.Label
+    if 'Placement' in src.PropertiesList:
+        cont.Placement = src.Placement  # matters for nested containers only
     _proprietes_figeage(cont, src, doc)
 
     chemins, gardes = {}, set()
-    for enfant in _enfants_directs(src):
-        if enfant.isDerivedFrom('App::Part'):
-            c, sous = _creer_ou_rafraichir_conteneur(doc, enfant, cont)
-            chemins[enfant.Name] = (c.Name, sous)
-        elif _est_solide(enfant):           # Body, Part::Feature, fasteners...
-            c = _creer_ou_rafraichir_copie(doc, enfant, cont)
-            chemins[enfant.Name] = (c.Name, None)
-        else:
-            if not enfant.isDerivedFrom('App::Origin'):
-                App.Console.PrintWarning(
-                    tr("Freeze: {part} / {child} ({type}) skipped in the container: only "
-                       "Bodies, solids and nested Parts are frozen.").format(
-                        part=src.Label, child=enfant.Label, type=enfant.TypeId) + "\n")
+    for m in _membres(src):
+        r = _figer_membre(doc, m, cont)
+        if r is None:
             continue
+        c, sous = r
+        chemins[m.Name] = (c.Name, sous)
         gardes.add(c.Name)
     chemins.update(_chemins_origine(getattr(src, 'Origin', None),
                                     getattr(cont, 'Origin', None)))
-    # Copies of objects removed from the source since the last freeze
+    # Copies of members removed from the source since the last freeze
     for o in list(cont.Group):
-        if _est_fige(o) and o.Name not in gardes:
+        if (_est_fige(o) or _est_lien_fige(o) or _est_assemblage_lien_fige(o)) and \
+                o.Name not in gardes:
             _supprimer_fige(doc, o)
-    if App.GuiUp:
-        try:
-            # Hidden at top level (the Link displays it), visible when nested
-            cont.ViewObject.Visibility = parent is not None
-        except Exception:
-            pass
+    if assemblage:
+        _copier_liaisons(doc, src, cont, chemins)
+    try:
+        # Hidden at top level (the Link displays it), as the source when nested
+        cont.Visibility = parent is not None and bool(getattr(src, 'Visibility', True))
+    except Exception:
+        pass
     return cont, chemins
 
 
+def _copier_liaisons(doc, src, cont, chemins):
+    """Joints and groundings of the source assembly, recreated in the frozen
+    assembly on the frozen components (Assembly workbench API, as the
+    duplication does). Joints that cannot be copied are reported, the
+    frozen components keep their solved placement anyway."""
+    try:
+        import UtilsAssembly
+        from . import duplicate
+    except Exception as exc:
+        App.Console.PrintWarning(tr("Freeze: joints of {name} not copied ({error}).").format(
+            name=src.Label, error=exc) + "\n")
+        return
+    groupe = UtilsAssembly.getJointGroup(cont)
+    for j in list(groupe.Group):        # refreshed from the source each time
+        doc.removeObject(j.Name)
+    sgroupe = None
+    for o in src.Group:
+        if o.TypeId == 'Assembly::JointGroup':
+            sgroupe = o
+    if sgroupe is None:
+        return
+    correspondance = {}
+    for nom, (copie, _sous) in chemins.items():
+        o_src, o_copie = src.Document.getObject(nom), doc.getObject(copie)
+        if o_src is not None and o_copie is not None:
+            correspondance[o_src] = o_copie
+    perdues = []
+    # A frozen assembly is a snapshot: whatever the Assembly workbench does
+    # while the joints are recreated, every member gets its source placement
+    # back afterwards
+    places = dict((o.Name, o.Placement) for o in cont.Group if 'Placement' in o.PropertiesList)
+    ordre = sorted(sgroupe.Group, key=lambda j: 'ObjectToGround' not in j.PropertiesList)
+    for j in ordre:
+        try:
+            if duplicate.copy_joint_into(doc, j, correspondance, cont, chemins) is None:
+                perdues.append(j.Label)
+        except Exception as exc:
+            perdues.append("%s (%s)" % (j.Label, exc))
+    for o in cont.Group:
+        if o.Name in places and o.Placement != places[o.Name]:
+            o.Placement = places[o.Name]
+    # The joints of a frozen copy are kept for the record, their markers
+    # would only clutter the view of the main assembly
+    for j in groupe.Group:
+        try:
+            j.Visibility = False
+        except Exception:
+            pass
+    if perdues:
+        App.Console.PrintWarning(tr("Freeze: {n} joint(s) of {name} not copied, its parts "
+                                    "keep their placement: {joints}").format(
+            n=len(perdues), name=src.Label, joints=", ".join(perdues)) + "\n")
+
+
+# --------------------------------------------------------------------------
+#  FREEZE as one block (one solid for a whole container)
+# --------------------------------------------------------------------------
+
+def _feuilles(src, chemin=(), profondeur=0):
+    """Leaves of a container in display order: [(path of member names from
+    src, label, file name)]; a leaf is a solid object, reached through
+    Links and nested containers."""
+    out = []
+    if profondeur > 30:
+        return out
+    for m in _membres(src):
+        if _ignore(m):
+            continue
+        p = chemin + (m.Name,)
+        t = m
+        while _est_lien(t) and t.LinkedObject is not None:
+            t = t.LinkedObject
+        if _est_assemblage_lien(m):
+            for c in m.Group:
+                if _est_lien(c) and c.LinkedObject is not None:
+                    out += _feuilles_cible(c, p + (c.Name,), profondeur + 1)
+        elif _est_groupe_source(t):
+            out += _feuilles(t, p, profondeur + 1)
+        elif t.isDerivedFrom('Part::Feature'):
+            out.append((p, t.Label, os.path.basename(t.Document.FileName or '')))
+    return out
+
+
+def _feuilles_cible(lien, chemin, profondeur):
+    t = lien
+    while _est_lien(t) and t.LinkedObject is not None:
+        t = t.LinkedObject
+    if _est_groupe_source(t):
+        return _feuilles(t, chemin, profondeur)
+    if t.isDerivedFrom('Part::Feature'):
+        return [(chemin, t.Label, os.path.basename(t.Document.FileName or ''))]
+    return []
+
+
+def _compter(shape):
+    return len(shape.Faces), len(shape.Edges), len(shape.Vertexes)
+
+
+def _creer_ou_rafraichir_bloc(doc, src):
+    """Frozen copy of the whole container `src` as ONE Part::Feature (a
+    compound of every leaf, in src coordinates). FigeBlocCarte keeps the
+    path and the element counts of each leaf, to renumber the joint
+    references; FigeNomenclature the parts it holds, for the BOM."""
+    feuilles = _feuilles(src)
+    formes, carte, nomenclature = [], [], []
+    for chemin, label, fichier in feuilles:
+        sh = Part.getShape(src, '.'.join(chemin) + '.', needSubElement=False, transform=False)
+        if sh.isNull():
+            continue
+        formes.append(sh)
+        f, e, v = _compter(sh)
+        carte.append("%s|%d|%d|%d" % ('.'.join(chemin), f, e, v))
+        nomenclature.append("%s|%s" % (label, fichier))
+    if not formes:
+        raise RuntimeError(tr("{name}: nothing to freeze").format(name=src.Label))
+    test = lambda o: _est_copie_figee(o) and 'FigeBlocCarte' in o.PropertiesList
+    copie = _trouver_copie(doc, src, None, test=test)
+    if copie is None:
+        copie = doc.addObject('Part::Feature', 'Fige_' + src.Name)
+        _groupe(doc, GROUPE_COPIES).addObject(copie)
+        copie.addProperty('App::PropertyStringList', 'FigeBlocCarte', 'Figeage',
+                          'path|faces|edges|vertices of each part of the block')
+        copie.addProperty('App::PropertyStringList', 'FigeNomenclature', 'Figeage',
+                          'label|file of each part of the block')
+    copie.Shape = forme_propre(Part.makeCompound(formes))
+    copie.FigeBlocCarte = carte
+    copie.FigeNomenclature = nomenclature
+    copie.Label = 'Fige_' + src.Label
+    _proprietes_figeage(copie, src, doc)
+    try:
+        copie.Visibility = False
+    except Exception:
+        pass
+    return copie
+
+
+def lire_carte(copie):
+    """[(path tuple, faces, edges, vertices)] of a frozen block."""
+    out = []
+    for ligne in getattr(copie, 'FigeBlocCarte', []) or []:
+        chemin, f, e, v = ligne.rsplit('|', 3)
+        out.append((tuple(chemin.split('.')), int(f), int(e), int(v)))
+    return out
+
+
+def renumeroter_vers_bloc(sub, k, carte):
+    """Subname through a Link to a container -> subname on the frozen block:
+    the leaf is found by its path, the element shifted by the elements of
+    the leaves before it ('Sub.Bolt001.Face3' -> 'Face27'). Unknown paths
+    are kept (the diagnostic then shows the broken reference)."""
+    objets, _mapped, elem = decouper_sub(sub)
+    reste = tuple(objets[k + 1:])
+    prefixe = '.'.join(objets[:k + 1])
+    prefixe = prefixe + '.' if prefixe else ''
+    m = _RE_ELEM_NUM.match(elem or '')
+    if not m:
+        return sub
+    genre, n = m.group(1), int(m.group(2))
+    decalage = {'Face': 0, 'Edge': 0, 'Vertex': 0}
+    for chemin, f, e, v in carte:
+        if reste[:len(chemin)] == chemin:
+            return "%s%s%d" % (prefixe, genre, decalage[genre] + n)
+        decalage['Face'] += f
+        decalage['Edge'] += e
+        decalage['Vertex'] += v
+    return sub
+
+
+def renumeroter_depuis_bloc(sub, k, carte):
+    """Inverse of renumeroter_vers_bloc, to relink a block to its source."""
+    objets, _mapped, elem = decouper_sub(sub)
+    prefixe = '.'.join(objets[:k + 1])
+    prefixe = prefixe + '.' if prefixe else ''
+    m = _RE_ELEM_NUM.match(elem or '')
+    if not m:
+        return sub
+    genre, n = m.group(1), int(m.group(2))
+    rang = {'Face': 1, 'Edge': 2, 'Vertex': 3}[genre]
+    for ligne in carte:
+        compte = ligne[rang]
+        if n <= compte:
+            return "%s%s.%s%d" % (prefixe, '.'.join(ligne[0]), genre, n)
+        n -= compte
+    return sub
+
+
 def _supprimer_fige(doc, o):
+    if _est_assemblage_lien(o):
+        for c in list(o.Group):
+            if _est_assemblage_lien(c):
+                _supprimer_fige(doc, c)
+            else:
+                doc.removeObject(c.Name)
     if _est_conteneur_fige(o):
         for c in list(o.Group):
-            if _est_fige(c):
+            if _est_fige(c) or _est_lien_fige(c) or _est_assemblage_lien_fige(c):
                 _supprimer_fige(doc, c)
+            elif c.TypeId == 'Assembly::JointGroup':
+                for j in list(c.Group):
+                    doc.removeObject(j.Name)
+                doc.removeObject(c.Name)
     App.Console.PrintMessage(
         tr("Freeze: obsolete copy removed: {name}").format(name=o.Label) + "\n")
     doc.removeObject(o.Name)
@@ -502,11 +1009,16 @@ def _marque(obj, inutile):
 
 def copies_inutilisees(doc):
     """Top-level frozen copies / containers no Link of `doc` uses (read only)."""
-    copies = [o for o in doc.Objects if _est_fige(o)
+    copies = [o for o in doc.Objects if (_est_fige(o) or _est_lien_fige(o))
               and o.getParentGeoFeatureGroup() is None]
-    utilisees = set(l.LinkedObject.Name for l in doc.Objects
-                    if _est_lien(l) and l.LinkedObject is not None)
+    utilisees = _cibles_utilisees(doc)
     return [c for c in copies if c.Name not in utilisees]
+
+
+def _cibles_utilisees(doc):
+    """Names of the objects some Link or sub-assembly of `doc` points to."""
+    return set(l.LinkedObject.Name for l in doc.Objects
+               if (_est_lien(l) or _est_assemblage_lien(l)) and l.LinkedObject is not None)
 
 
 def marquer_inutilisees(doc):
@@ -514,14 +1026,11 @@ def marquer_inutilisees(doc):
     deleted, relinked, replaced...) are moved into the sub-group "Unused" of
     Solides_figes and get the overlay icon, so they can be sorted out by
     hand; copies used again go back. Returns the unused ones."""
-    copies = [o for o in doc.Objects if _est_fige(o)
+    copies = [o for o in doc.Objects if (_est_fige(o) or _est_lien_fige(o))
               and o.getParentGeoFeatureGroup() is None]     # not inside a container
     if not copies:
         return []
-    utilisees = set()
-    for l in doc.Objects:
-        if _est_lien(l) and l.LinkedObject is not None:
-            utilisees.add(l.LinkedObject.Name)
+    utilisees = _cibles_utilisees(doc)
     inutiles = [c for c in copies if c.Name not in utilisees]
     principal = doc.getObject(GROUPE_COPIES)
     sous = doc.getObject(GROUPE_INUTILES)
@@ -543,14 +1052,17 @@ def marquer_inutilisees(doc):
 
 def _chemins_inverses(cont, src):
     """Path mapping copy name -> source name, to relink a frozen container
-    to its source App::Part (inverse of _creer_ou_rafraichir_conteneur)."""
+    to its source (inverse of _creer_ou_rafraichir_conteneur)."""
     chemins = {}
     for c in cont.Group:
-        o = src.Document.getObject(c.FigeObjet) if _est_fige(c) else None
+        o = src.Document.getObject(c.FigeObjet) if (_est_fige(c) or _est_lien_fige(c)) \
+            else None
         if o is None:
             continue
         if _est_conteneur_fige(c):
             chemins[c.Name] = (o.Name, _chemins_inverses(c, o))
+        elif _est_lien_fige(c):
+            chemins[c.Name] = (o.Name, _inverse_lien(c, o))
         else:
             chemins[c.Name] = (o.Name, None)
     chemins.update(_chemins_origine(getattr(cont, 'Origin', None),
@@ -558,34 +1070,125 @@ def _chemins_inverses(cont, src):
     return chemins
 
 
-def figer(doc=None, selection=None):
-    """Freeze the given Links (selection) or every external Link (None).
-    Returns {"frozen": [Link names], "skipped": [{"name", "reason"}],
-    "refs_updated": n}."""
+def _inverse_lien(lk, o):
+    """Path mapping below a frozen Link `lk` back to its source member `o`."""
+    cible = lk.LinkedObject
+    while _est_lien_fige(cible) and cible.getParentGeoFeatureGroup() is None \
+            and _est_lien(cible.LinkedObject):
+        cible = cible.LinkedObject
+    if _est_assemblage_lien(o):
+        # frozen components -> children of the source sub-assembly
+        sous = {}
+        for c in o.Group:
+            t = c.LinkedObject if _est_lien(c) else None
+            for fc in (cible.Group if _est_conteneur_fige(cible) else []):
+                if t is not None and getattr(fc, 'FigeObjet', None) == t.Name:
+                    sous[fc.Name] = (c.Name, None)
+        return sous
+    t = o.LinkedObject if _est_lien(o) else None
+    while _est_lien(t):
+        t = t.LinkedObject
+    if _est_conteneur_fige(cible) and t is not None:
+        return _chemins_inverses(cible, t)
+    return None
+
+
+def _figer_un(doc, lien, mode):
+    """Freeze one Link or sub-assembly. Returns the number of references
+    rewritten."""
+    src = lien.LinkedObject
+    if _est_assemblage_lien(lien):
+        return _figer_assemblage_lien(doc, lien, mode)
+    if mode == "block" and _est_groupe_source(src):
+        copie = _creer_ou_rafraichir_bloc(doc, src)
+        carte = lire_carte(copie)
+        return appliquer_reecriture(lien, nouvelle_cible=copie,
+                                    fonction=lambda sub, k: renumeroter_vers_bloc(sub, k, carte))
+    copie, chemins = copie_cible(doc, src)
+    return appliquer_reecriture(lien, nouvelle_cible=copie, chemins=chemins)
+
+
+def _figer_assemblage_lien(doc, al, mode):
+    """Sub-assembly of FreeCAD 26.x (Assembly::AssemblyLink): its assembly is
+    frozen into an Assembly of this document, the children of `al` (and of
+    the nested sub-assemblies it mirrors) are pointed to the matching frozen
+    members, same names: the joints of the main assembly stay valid."""
+    if mode == "block":
+        App.Console.PrintWarning(tr("Freeze: {name} is a sub-assembly of the Assembly "
+                                    "workbench; it is frozen with its structure (one block "
+                                    "is only possible for a Link).").format(name=al.Label)
+                                 + "\n")
+    fa, _chemins = _creer_ou_rafraichir_conteneur(doc, al.LinkedObject)
+    touches = _recibler(al, fa, lambda m, t: m.FigeObjet == t.Name)
+    al.LinkedObject = fa
+    return sum(appliquer_reecriture(c) for c in touches)
+
+
+def _membres_cibles(asm):
+    return [m for m in asm.Group if _est_fige(m) or _est_lien_fige(m) or
+            _est_assemblage_lien(m) or _est_lien(m)]
+
+
+def _recibler(al, cible, correspond):
+    """Point each child of the sub-assembly `al` to the member of the
+    assembly `cible` matching its current target (correspond(member,
+    target)); nested sub-assemblies recursively. Returns the child Links
+    retargeted (their references must be rewritten)."""
+    touches = []
+    membres = _membres_cibles(cible)
+    for c in list(al.Group):
+        t = getattr(c, 'LinkedObject', None)
+        if t is None or not (_est_lien(c) or _est_assemblage_lien(c)):
+            continue
+        m = None
+        for x in membres:
+            try:
+                if correspond(x, t):
+                    m = x
+            except Exception:
+                pass
+        if m is None:
+            continue
+        if _est_assemblage_lien(c) and _est_assemblage_lien(m):
+            touches += _recibler(c, m.LinkedObject, correspond)
+        c.LinkedObject = m
+        if _est_lien(c):
+            touches.append(c)
+    return touches
+
+
+def figer(doc=None, selection=None, mode="structure"):
+    """Freeze the given Links / sub-assemblies (selection) or every external
+    one (None). mode = "structure" (default: containers and sub-assemblies
+    keep their parts, names, placements and joints) or "block" (a Link to a
+    container becomes ONE frozen solid). A Link whose content cannot be
+    frozen is left linked and reported; any error undoes the whole freeze
+    (one transaction). Returns {"frozen": [names], "skipped": [{"name",
+    "reason"}], "refs_updated": n}."""
     doc = doc or App.ActiveDocument
+    if mode not in MODES:
+        raise ValueError("mode must be one of %s" % (MODES,))
     result = {"frozen": [], "skipped": [], "refs_updated": 0}
     liens = liens_externes(doc, selection)
     if not liens:
         App.Console.PrintMessage(tr("Freeze: no external link to freeze.") + "\n")
         return result
+    a_figer = []
+    for lien in liens:
+        raisons = obstacles(lien.LinkedObject)
+        if raisons:
+            App.Console.PrintWarning(
+                tr("Freeze: {link} is left linked: {reasons}").format(
+                    link=lien.Label, reasons="; ".join(raisons)) + "\n")
+            result["skipped"].append({"name": lien.Name, "reason": "; ".join(raisons)})
+        else:
+            a_figer.append(lien)
+    if not a_figer:
+        return result
     doc.openTransaction(tr("Freeze components"))
     try:
-        for lien in liens:
-            src = lien.LinkedObject
-            if src.isDerivedFrom('App::Part'):
-                copie, chemins = _creer_ou_rafraichir_conteneur(doc, src)
-                n = appliquer_reecriture(lien, nouvelle_cible=copie, chemins=chemins)
-            elif src.isDerivedFrom('Part::Feature'):
-                copie = _creer_ou_rafraichir_copie(doc, src)
-                n = appliquer_reecriture(lien, nouvelle_cible=copie)
-            else:
-                App.Console.PrintWarning(
-                    tr("Freeze: {link} -> {target} ({type}) skipped: only Bodies, "
-                       "Part::Features and Parts are supported.").format(
-                        link=lien.Label, target=src.Label, type=src.TypeId) + "\n")
-                result["skipped"].append({"name": lien.Name, "reason": "unsupported type " +
-                                          src.TypeId})
-                continue
+        for lien in a_figer:
+            n = _figer_un(doc, lien, mode)
             App.Console.PrintMessage(
                 tr("Freeze: {name} frozen ({n} references refreshed)").format(
                     name=lien.Label, n=n) + "\n")
@@ -593,8 +1196,10 @@ def figer(doc=None, selection=None):
             result["refs_updated"] += n
         marquer_inutilisees(doc)
         doc.recompute()
-    finally:
-        doc.commitTransaction()
+    except Exception:
+        doc.abortTransaction()          # never a half-frozen assembly
+        raise
+    doc.commitTransaction()
     return result
 
 
@@ -602,9 +1207,28 @@ def figer(doc=None, selection=None):
 #  RELINK (back to the source file)
 # --------------------------------------------------------------------------
 
+def _relier_un(doc, lien, copie, src):
+    if _est_assemblage_lien(lien):
+        # frozen member -> source member of the same name
+        touches = _recibler(lien, src, lambda m, t: getattr(t, 'FigeObjet', None) == m.Name)
+        lien.LinkedObject = src
+        return sum(appliquer_reecriture(c) for c in touches)
+    if 'FigeBlocCarte' in copie.PropertiesList:
+        carte = lire_carte(copie)
+        return appliquer_reecriture(
+            lien, nouvelle_cible=src,
+            fonction=lambda sub, k: renumeroter_depuis_bloc(sub, k, carte))
+    if _est_conteneur_fige(copie):
+        return appliquer_reecriture(lien, nouvelle_cible=src,
+                                    chemins=_chemins_inverses(copie, src))
+    # "Face6" stays valid on a Body; flush hidden names of the copy
+    return appliquer_reecriture(lien, nouvelle_cible=src)
+
+
 def relier(doc=None, selection=None):
-    """Point the given frozen Links (selection) or all of them (None) back to
-    their source Body. The frozen copy is kept and reused on next freeze."""
+    """Point the given frozen Links / sub-assemblies (selection) or all of
+    them (None) back to their source. The frozen copy is kept and reused on
+    next freeze."""
     doc = doc or App.ActiveDocument
     result = {"relinked": [], "missing_source": []}
     liens = liens_figes(doc, selection)
@@ -623,20 +1247,17 @@ def relier(doc=None, selection=None):
                         name=lien.Label, file=copie.FigeFichier) + "\n")
                 result["missing_source"].append({"name": lien.Name, "file": copie.FigeFichier})
                 continue
-            if _est_conteneur_fige(copie):
-                appliquer_reecriture(lien, nouvelle_cible=src,
-                                     chemins=_chemins_inverses(copie, src))
-            else:
-                # "Face6" stays valid on a Body; flush hidden names of the copy
-                appliquer_reecriture(lien, nouvelle_cible=src)
+            _relier_un(doc, lien, copie, src)
             App.Console.PrintMessage(
                 tr("Freeze: {name} relinked to {doc}#{obj}").format(
                     name=lien.Label, doc=doc_src.Name, obj=src.Name) + "\n")
             result["relinked"].append(lien.Name)
         marquer_inutilisees(doc)
         doc.recompute()
-    finally:
-        doc.commitTransaction()
+    except Exception:
+        doc.abortTransaction()
+        raise
+    doc.commitTransaction()
     return result
 
 

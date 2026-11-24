@@ -16,8 +16,9 @@
 # You should have received a copy of the GNU Lesser General Public License
 # along with this library; if not, see <https://www.gnu.org/licenses/>.
 """
-api.py (Assembly Companion) - the stable public API, for scripts, agents and
-the FreeCAD MCP server (execute_code / execute_code_headless).
+api.py (Assembly Companion) - the stable public API, for scripts, macros and
+other addons (a third-party MCP addon may call it too). The workbench itself
+stays passive: no server, no network, nothing started on import.
 
 Contract:
   * headless-safe: no dialog, no use of the active view or of
@@ -57,7 +58,7 @@ __all__ = [
     "duplicate_components", "make_lightweight", "restore_full", "new_part_from_selection",
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
-    "scan_library", "list_library",
+    "scan_library", "list_library", "import_step", "extract_bodies",
     "AssemblyCompanionError",
 ]
 
@@ -132,7 +133,7 @@ def _component_dict(o, doc):
 # ----------------------------------------------------------------------
 def describe():
     """Catalogue of the public functions: name, docstring, parameters with
-    their defaults, for an agent to discover the API on its own."""
+    their defaults, for a script to discover the API on its own."""
     out = {"api_version": API_VERSION, "functions": []}
     for name in __all__:
         f = globals().get(name)
@@ -174,17 +175,31 @@ def list_components(doc):
     return out
 
 
-def freeze_parts(doc, names=None, dry_run=False):
-    """Freeze the Links `names` (internal names; None = every external Link):
-    each one points to a dead BREP copy stored in the document.
+def freeze_parts(doc, names=None, dry_run=False, mode="structure"):
+    """Freeze the Links and sub-assemblies `names` (internal names; None =
+    every external one): each one points to a dead BREP copy stored in the
+    document. Containers (Std_Part, STEP import groups) and sub-assemblies
+    are frozen with their parts, names, placements and joints (mode
+    "structure"), or as ONE solid per Link (mode "block"). A Link whose
+    content cannot be frozen is left linked and listed in "skipped"; one
+    undo step, nothing changed when an error occurs.
     -> {"frozen": [...], "skipped": [{"name", "reason"}], "refs_updated": n}"""
     from . import freeze
     doc = _doc(doc)
+    if mode not in freeze.MODES:
+        raise UnsupportedObjectError(tr("Unknown freeze mode: {mode}").format(mode=mode),
+                                     mode=mode)
     links = freeze.liens_externes(doc, _objs(doc, names))
     if dry_run:
-        return {"frozen": [l.Name for l in links], "skipped": [], "refs_updated": 0,
-                "dry_run": True}
-    return freeze.figer(doc, _objs(doc, names))
+        frozen, skipped = [], []
+        for l in links:
+            reasons = freeze.obstacles(l.LinkedObject)
+            if reasons:
+                skipped.append({"name": l.Name, "reason": "; ".join(reasons)})
+            else:
+                frozen.append(l.Name)
+        return {"frozen": frozen, "skipped": skipped, "refs_updated": 0, "dry_run": True}
+    return freeze.figer(doc, _objs(doc, names), mode=mode)
 
 
 def relink_parts(doc, names=None, dry_run=False):
@@ -268,22 +283,31 @@ def refreeze_outdated(doc, names=None, dry_run=False):
 # ----------------------------------------------------------------------
 #  BOM, collisions, archive
 # ----------------------------------------------------------------------
-def bom(doc):
+def bom(doc, hierarchical=False):
     """Bill of materials of `doc`, frozen parts under their original name.
-    -> [{"quantity", "part", "source_file", "state"}] sorted by part"""
+    Flat: [{"quantity", "part", "source_file", "state"}] sorted by part, the
+    parts of sub-assemblies counted in. hierarchical=True: sub-assemblies
+    are rows of their own with their parts in "children" (same keys,
+    recursively)."""
     from . import bom as _bom
     doc = _doc(doc)
+    if hierarchical:
+        return _bom.collect_tree(_bom.roots_of(doc), doc)
     rows = _bom.collect(_bom.roots_of(doc), doc)
     return [{"quantity": q, "part": n, "source_file": f, "state": s}
             for (n, f, s), q in sorted(rows.items(), key=lambda kv: (kv[0][0].lower(),
                                                                     kv[0][1]))]
 
 
-def export_bom_csv(doc, path):
-    """Write the bill of materials of `doc` to the CSV file `path`.
-    -> {"path", "rows"}"""
+def export_bom_csv(doc, path, hierarchical=False):
+    """Write the bill of materials of `doc` to the CSV file `path` (with a
+    "Level" column when hierarchical). -> {"path", "rows"}"""
     from . import bom as _bom
     doc = _doc(doc)
+    if hierarchical:
+        tree = _bom.collect_tree(_bom.roots_of(doc), doc)
+        _bom.write_csv_tree(path, tree)
+        return {"path": path, "rows": len(_bom.flatten_tree(tree))}
     rows = _bom.collect(_bom.roots_of(doc), doc)
     _bom.write_csv(path, rows)
     return {"path": path, "rows": len(rows)}
@@ -519,6 +543,85 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  Extract bodies
+# ----------------------------------------------------------------------
+def extract_bodies(doc, names, folder=None, prefix=None, revision=None, replace=False,
+                   dry_run=False):
+    """Copy each PartDesign Body `names` with its whole tree (sketches,
+    features, datums, spreadsheets its expressions use) into its own new
+    file PREFIX_NNNr_<label>.FCStd in `folder` (defaults: the new-part
+    preferences, folder of `doc`). Binders become detached, outside
+    attachments deactivated: the new files stand alone. replace=True puts a
+    Link to each new part in place of the body (joints kept), one undo step.
+    -> {"bodies": [{"body", "file", "copied", "standalone", "external",
+    "volume", "faces", "new_volume", "new_faces"}], "replaced": [...]}"""
+    from . import extract, prefs
+    doc = _doc(doc)
+    bodies = _objs(doc, names) or []
+    for b in bodies:
+        if not b.isDerivedFrom("PartDesign::Body"):
+            raise UnsupportedObjectError(tr("{name} is not a Body.").format(name=b.Label),
+                                         name=b.Name)
+    folder = folder or prefs.get("NewPartDir") or (os.path.dirname(doc.FileName)
+                                                    if doc.FileName else None)
+    if not folder or not os.path.isdir(folder):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(path=folder or ""),
+                                  path=folder or "")
+    prefix = prefs.get("NewPartPrefix") if prefix is None else prefix
+    revision = prefs.get("NewPartRevision") if revision is None else revision
+    paths = extract.names_for(bodies, folder, prefix, prefs.get("NewPartDigits"), revision)
+    reports, replaced = [], []
+    for b, path in zip(bodies, paths):
+        reports.append(extract.extract_body(b, path, dry_run=dry_run))
+    if replace and not dry_run:
+        for b, r in zip(bodies, reports):
+            if b.getParentGeoFeatureGroup() is not None and r.get("new_body"):
+                replaced.append(extract.replace_in_assembly(doc, b, r["file"], r["new_body"]))
+    out = {"bodies": reports, "replaced": replaced}
+    if dry_run:
+        out["dry_run"] = True
+    return out
+
+
+# ----------------------------------------------------------------------
+#  STEP import
+# ----------------------------------------------------------------------
+def import_step(doc, step_path, assembly=None, mode="file", file_path=None, insert=True):
+    """Import the STEP file `step_path` as one Std_Part (import groups turned
+    into Parts: every element visible and usable for joints) and insert it
+    into `assembly` (name; None = the first assembly of `doc`). mode "file":
+    the Part is saved in a new .FCStd (`file_path`, default next to the
+    assembly, named after the STEP file; never overwritten) and linked;
+    mode "document": the Part is created in `doc` as a component.
+    -> {"mode", "file", "part", "document", "inserted", "solids"}"""
+    from . import step_import
+    doc = _doc(doc)
+    if mode not in step_import.MODES:
+        raise UnsupportedObjectError(tr("Unknown import mode: {mode}").format(mode=mode),
+                                     mode=mode)
+    if not os.path.isfile(step_path):
+        raise SourceNotFoundError(tr("File not found: {file}").format(file=step_path),
+                                  path=step_path)
+    if mode == "file" and not doc.FileName and not file_path:
+        raise NoDocumentError(tr("Save the assembly first: the new part file is created "
+                                 "next to it."), document=doc.Name)
+    asm = None
+    if insert:
+        if assembly is not None:
+            asm = _obj(doc, assembly)
+        else:
+            asms = _assemblies(doc)
+            if not asms:
+                raise NoAssemblyError(tr("No assembly in {doc}.").format(doc=doc.Label),
+                                      document=doc.Name)
+            asm = asms[0]
+    try:
+        return step_import.import_step(doc, step_path, asm, mode, file_path, insert)
+    except IOError as exc:
+        raise UnsupportedObjectError(str(exc), path=file_path or step_path)
 
 
 # ----------------------------------------------------------------------

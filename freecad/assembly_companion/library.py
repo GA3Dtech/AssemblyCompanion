@@ -42,6 +42,11 @@ except ImportError:                       # plain Python (tools, tests)
 # ----------------------------------------------------------------------
 #  Paths
 # ----------------------------------------------------------------------
+# Files listed by the explorer: FreeCAD files, and STEP files (inserted
+# through "Import STEP as part")
+LIBRARY_EXTENSIONS = (".fcstd", ".step", ".stp")
+
+
 def norm(path):
     """Comparable form of a path (case-insensitive on Windows)."""
     return os.path.normcase(os.path.normpath(path))
@@ -77,7 +82,7 @@ def scan_folder(path, recursive=True):
                 if e.is_dir(follow_symlinks=False):
                     if not e.name.startswith('.'):
                         subdirs.append(e.path)
-                elif e.name.lower().endswith(".fcstd"):
+                elif e.name.lower().endswith(LIBRARY_EXTENSIONS):
                     st = e.stat()
                     files.append((e.path, st.st_mtime, st.st_size))
             except OSError:
@@ -156,7 +161,9 @@ def folder_sort_key(master, folder):
 # ----------------------------------------------------------------------
 #  Disk cache (scan results and thumbnails)
 # ----------------------------------------------------------------------
-def cache_dir():
+def default_cache_dir():
+    """FreeCAD's user cache folder (some systems empty it often: the
+    preference ExplorerCacheDir can point elsewhere)."""
     base = None
     for fn in ("getUserCachePath", "getUserAppDataDir"):
         try:
@@ -165,9 +172,57 @@ def cache_dir():
                 break
         except Exception:
             pass
-    d = os.path.join(base or os.path.expanduser("~"), "assembly_explorer_cache")
-    os.makedirs(os.path.join(d, "thumbs"), exist_ok=True)
+    return os.path.join(base or os.path.expanduser("~"), "assembly_explorer_cache")
+
+
+def _private(path):
+    """Folder readable and writable by the current user only (POSIX; on
+    Windows the user profile is private already)."""
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    if os.name == "posix":
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
+
+
+def cache_dir():
+    """Explorer cache folder: the ExplorerCacheDir preference, else the
+    default one. Created private to the current user."""
+    d = ""
+    try:
+        from . import prefs
+        d = prefs.get("ExplorerCacheDir")
+    except Exception:
+        pass
+    d = d or default_cache_dir()
+    _private(d)
+    _private(os.path.join(d, "thumbs"))
     return d
+
+
+def move_cache(old, new):
+    """Move the content of the cache folder `old` into `new` (files already
+    in `new` are kept). Returns the number of files moved."""
+    import shutil
+    if not old or not os.path.isdir(old) or norm(old) == norm(new):
+        return 0
+    _private(new)
+    n = 0
+    for dirpath, _dirs, files in os.walk(old):
+        rel = os.path.relpath(dirpath, old)
+        dst_dir = os.path.join(new, rel) if rel != "." else new
+        _private(dst_dir)
+        for f in files:
+            dst = os.path.join(dst_dir, f)
+            if not os.path.exists(dst):
+                try:
+                    shutil.move(os.path.join(dirpath, f), dst)
+                    n += 1
+                except OSError:
+                    pass
+    shutil.rmtree(old, ignore_errors=True)
+    return n
 
 
 def cache_key(*parts):
@@ -272,3 +327,94 @@ def human_size(n):
         if n < 1024 or unit == "GB":
             return ("%d %s" if unit == "B" else "%.1f %s") % (n, unit)
         n /= 1024.0
+
+
+# ----------------------------------------------------------------------
+#  Favourite folders and tags (stored in the user preferences, never in
+#  the library folders themselves)
+# ----------------------------------------------------------------------
+TAG_MAX = 12
+
+
+def _pref_json(key, default):
+    try:
+        from . import prefs
+        value = json.loads(prefs.get(key) or "")
+        return value if isinstance(value, type(default)) else default
+    except Exception:
+        return default
+
+
+def _put_json(key, value):
+    from . import prefs
+    prefs.put(key, json.dumps(value, ensure_ascii=False))
+
+
+def favorites():
+    """Favourite folders, in the order they were added."""
+    return [f for f in _pref_json("ExplorerFavorites", []) if isinstance(f, str)]
+
+
+def is_favorite(folder):
+    return norm(folder) in set(norm(f) for f in favorites())
+
+
+def set_favorite(folder, on):
+    favs = [f for f in favorites() if norm(f) != norm(folder)]
+    if on:
+        favs.append(os.path.normpath(folder))
+    _put_json("ExplorerFavorites", favs)
+    return on
+
+
+def missing_favorites(master=None):
+    """Favourites that no longer exist (moved, deleted, share offline);
+    with `master`, only those that were under it."""
+    return [f for f in favorites() if not os.path.isdir(f)
+            and (master is None or is_inside(f, master))]
+
+
+def order_with_favorites(folders, favs=None):
+    """`folders` (display order) with the favourite ones first, in the
+    order of the favourites; the others keep their order."""
+    favs = favorites() if favs is None else favs
+    keys = dict((norm(d), d) for d in folders)
+    pinned = [keys[norm(f)] for f in favs if norm(f) in keys]
+    pinned_keys = set(norm(d) for d in pinned)
+    return pinned + [d for d in folders if norm(d) not in pinned_keys]
+
+
+def tags():
+    return dict((k, v) for k, v in _pref_json("ExplorerTags", {}).items()
+                if isinstance(k, str) and isinstance(v, str))
+
+
+def tag_of(path):
+    t = tags()
+    return t.get(norm(path), "")
+
+
+def clean_tag(text):
+    """An emoji or a short #tag: spaces removed, at most TAG_MAX characters;
+    a word without '#' gets one."""
+    text = "".join((text or "").split())[:TAG_MAX]
+    if text and text[0].isalnum() and text.isascii():
+        text = ("#" + text)[:TAG_MAX]
+    return text
+
+
+def set_tag(path, text):
+    """Tag of a file or folder ("" removes it). Returns the stored tag."""
+    t = tags()
+    tag = clean_tag(text)
+    if tag:
+        t[norm(path)] = tag
+    else:
+        t.pop(norm(path), None)
+    _put_json("ExplorerTags", t)
+    return tag
+
+
+def clear_favorites_and_tags():
+    _put_json("ExplorerFavorites", [])
+    _put_json("ExplorerTags", {})

@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Instructions of the coding agent: kept locally, not part of the addon
+CLAUDE.md
+.claude/

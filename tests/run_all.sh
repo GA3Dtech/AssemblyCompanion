@@ -50,8 +50,8 @@ run_freecad_level() {  # run_freecad_level <pytest args> <with addon: 1|0>
 
 case "$LEVEL" in
     unit) run_unit ;;
-    freecad) run_freecad_level "tests/freecad -q" 1 ;;
-    vanilla) run_freecad_level "tests/vanilla -q" 1 ;;
+    freecad) run_freecad_level "${AC_PYTEST_ARGS:-tests/freecad -q}" 1 ;;
+    vanilla) run_freecad_level "${AC_PYTEST_ARGS:-tests/vanilla -q}" 1 ;;
     all) run_unit; run_freecad_level "tests/freecad tests/vanilla -q" 1 ;;
     *) echo "usage: $0 [unit|freecad|vanilla|all]"; exit 2 ;;
 esac

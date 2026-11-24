@@ -47,13 +47,16 @@ def all_kinds_model():
 def panel_models():
     """Every panel model of the workbench, on a minimal document."""
     import FreeCAD as App
-    from freecad.assembly_companion import collisions, new_part, outdated
+    from freecad.assembly_companion import collisions, extract, new_part, outdated, step_import
     doc = App.newDocument("ac_panels")
     box = doc.addObject("Part::Box", "Box")
+    body = doc.addObject("PartDesign::Body", "Body")
     items = [("Box.", "Box"), ("Box001.", "Box001")]
     return doc, [all_kinds_model(), outdated.OutdatedPanel(doc),
                  new_part.NewPartPanel(doc, [(box, "Face6")]),
-                 collisions.CollisionsPanel(doc, items, [(0, 1, 12.5, None)])]
+                 collisions.CollisionsPanel(doc, items, [(0, 1, 12.5, None)]),
+                 step_import.ImportStepPanel(doc, "/tmp/kit.step"),
+                 extract.ExtractPanel(doc, [body])]
 
 
 def item_names(item):

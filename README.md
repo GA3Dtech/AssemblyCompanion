@@ -10,16 +10,28 @@ The built-in Assembly workbench links parts from their source files (App::Link).
 
 ## Tools
 
+The toolbar and the menu follow the workflow, one group per theme
+(separators between groups):
+
+| Group | Commands |
+|---|---|
+| Library | Local parts explorer, Insert component (visual), Import STEP as part |
+| Build | New part from selection, Extract bodies, Update part binder, Duplicate components, Replace component, Selection sets |
+| Durable | Freeze parts, Relink to sources, Outdated frozen parts, Check frozen assembly, Delete part joints (menu: Repair) |
+| Large assemblies | Make lightweight, Restore full components, Open source file |
+| Reports | Bill of materials, Check collisions, Archive |
+| Finishing | Group fasteners with their body, Align elements, Reactivate assembly |
+
 ### Durable assemblies
 | Command | What it does |
 |---|---|
-| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. Links to a Std_Part container get a frozen Std_Part holding a dead copy of each Body, joints included. |
+| **Freeze parts** | Retargets each Link to a dead BREP copy stored in the assembly (no topological history). The assembly no longer depends on source files or on how a future FreeCAD recomputes them. Std_Part containers, imported STEP groups and sub-assemblies (Links or sub-assemblies of the Assembly workbench, any depth) are frozen with their parts, names, placements, colours and internal joints, or optionally as one solid per component. A component whose content cannot be frozen stays linked and is reported; one undo step. |
 | **Relink to sources** | Points frozen parts back to their source file, to edit them. Then freeze again. |
 | **Delete part joints** | Deletes every joint (and grounding) of the selected parts, in one undo step. |
 | **Check frozen assembly** | Reports, for every joint reference, whether it resolves, and on which object and file. |
 | *Unused frozen copies* | Frozen copies no part uses any more (part deleted, relinked, replaced) are moved automatically into a **Unused** sub-group of `Solides_figes` and get a crossed-out overlay icon in the tree, so they can be sorted out by hand. Used again, they go back. |
 | **Outdated frozen parts** | Lists the frozen parts whose source file was saved after they were frozen (date stored on each copy) and refreezes the checked ones in place from the saved source file, joint references refreshed. |
-| **Bill of materials (CSV)** | Flat list of the parts with quantities, written to a CSV file: frozen parts under their original name and source file (not `Fige_…`), linked parts, parts stored in the assembly, fasteners, sub-assemblies and Link arrays included. |
+| **Bill of materials (CSV)** | List of the parts with quantities, flat or by sub-assembly (preference), written to a CSV file: frozen parts under their original name and source file (not `Fige_…`), linked parts, parts stored in the assembly, fasteners, sub-assemblies and Link arrays included. |
 | **Archive the assembly** | "Pack and go": the assembly and every file it needs (linked parts, sub-assemblies, optionally the sources of frozen parts) in one zip with a manifest, relative paths kept so it opens anywhere once extracted. Unsaved changes are reported first. |
 | **Make lightweight** | For very large assemblies: the selected components (or all) are replaced by a light mesh skin — one per body, colours kept — plus a small BREP skeleton holding only the elements their joints use. Joints and solver keep working, the heavy BREP is no longer in the file (reopening ~24× faster per part, see [docs/benchmark.md](docs/benchmark.md)). |
 | *Sub-assemblies and level of detail* | A whole sub-assembly can be made lightweight as one component (its parts, or its own lightweight components, merged into one skin per colour), so a workshop-scale model only loads a few skins. Skins are drawn as boxes when they are small on screen (level of detail chosen by Coin at each frame from the screen area, so it works with the orthographic camera; threshold in the preferences, 0 = always the mesh). |
@@ -39,8 +51,10 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | **Update part binder** | Replaces the content of the SubShapeBinder of an open part (made with *New part from selection*) by the faces, edges or parts selected in the assembly, to add or remove context elements. *Shape for TechDraw* of the selection sets likewise updates its binder in place when run again. |
 | **Group fasteners with their body** | Moves the screws, nuts, inserts… of the Fasteners workbench into the Std_Part of the body they are attached to, creating a Std_Part around a body that has none. The Part becomes a complete component (inserted and frozen with its fasteners), and the fasteners stay in their holes when the Part is moved — at the document root they drift as soon as the Part is not at the origin. |
 | **New part from selection** | Creates a new part file named `PREFIX_001a_Description.FCStd` (working folder, free prefix, next free number proposed, revision, description) whose Body holds a SubShapeBinder of the selected faces, edges or parts — or of a selection set. By default the binder is an independent copy, so the new part can be inserted into the assembly, exactly in place, without making the files depend on each other; a linked binder that follows the assembly is also available. |
+| **Extract bodies** | Copies each selected Body with its whole tree (sketches, features, datums, spreadsheets used by its expressions) into its own new file, named like the new parts (`PREFIX_NNNr_<body>.FCStd`): a clean file from a crowded tree. SubShapeBinders become independent and attachments to other objects are removed (placement kept), so the new file stands alone; what still points outside is reported. Optionally replaces the bodies in the assembly by the new parts, joints kept. |
 | **Replace component** | Points the selected component to an object of another file — the next revision of its source file (`AB_001a` → `AB_001b`) is proposed automatically, the object with the same internal name is preselected — keeping its place and joints. Frozen components are frozen again from the new file; other instances of the same part can be replaced in the same step. |
-| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). Right-click a folder header to refresh only that folder; files saved from FreeCAD refresh their own folder. |
+| **Import STEP as part** | Imports a STEP file as one Std_Part: the import groups created by FreeCAD's STEP importer become Parts, so every element is visible in the assembly and can carry joints. Saved in a new FreeCAD file next to the assembly (recommended) or created in the assembly document, then inserted into the active assembly. Also from the explorer (STEP files are listed: click or right-click to insert). |
+| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). Right-click a folder header to refresh only that folder or to add it to the **favorites** (pinned on top, ★ menu, "Favorites only" filter); right-click a card or a folder to give it a **tag** (emoji or short #tag shown on the thumbnail). Favorites and tags are kept in the user preferences, not in the folders. Files saved from FreeCAD refresh their own folder. |
 | **Align elements** | Place a body by clicking an element on it, then on another body; flip, offset, rotation, optional gizmo. Ideal for static assemblies in a Std_Part. |
 | **Check collisions** | Splits the assembly into elementary parts (through Links, frozen or linked Parts, sub-assemblies) and intersects the pairs whose bounding boxes overlap: interferences are listed (a click selects the two parts) and shown as red volumes. Fasteners can be left out. |
 | **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference, new part from the set. With **Keep faces, edges and vertices** checked, a set stores the chosen elements themselves (marked ◆) and selects them again; **Shape for TechDraw** turns a set into a SubShapeBinder of only those elements, to draw just what matters (no screw threads or cosmetic details). Opening the panel leaves the assembly edit mode so faces, edges and vertices can be picked. Made for exploded STEP files and large assemblies. |
@@ -53,17 +67,17 @@ When the built-in **Assembly** workbench is active, the Companion tools are avai
 
 The interface is written in English and translated into **French, German, Italian and Spanish** (by default it follows the language of FreeCAD). Translations are JSON files in `freecad/assembly_companion/translations/`; `python3 tools/i18n.py check` lists missing texts, `python3 tools/i18n.py update` adds them to every file, `python3 tools/i18n.py new <code>` starts a new language. Contributions of new languages are welcome.
 
-## API for agents (MCP)
+## Python API (scripts, macros, addons)
 
-`freecad/assembly_companion/api.py` exposes every tool as a plain function
-for scripts, AI agents and the
-[FreeCAD MCP server](https://github.com/neka-nat/freecad-mcp): no dialog,
-the document passed explicitly, JSON-serialisable results, typed errors
-(`errors.py`) and `dry_run=True` on the functions that change a document.
-`api.describe()` returns the catalogue; the reference is
+Assembly Companion is a passive workbench: it runs no server, opens no network
+connection and starts nothing on its own. `freecad/assembly_companion/api.py`
+exposes every tool as a plain Python function for scripts, macros and other
+addons: no dialog, the document passed explicitly, JSON-serialisable results,
+typed errors (`errors.py`) and `dry_run=True` on the functions that change a
+document. `api.describe()` returns the catalogue; the reference is
 [docs/api.md](docs/api.md).
 
-In the running FreeCAD (MCP `execute_code`):
+In the FreeCAD Python console or a macro:
 
 ```python
 from freecad.assembly_companion import api
@@ -72,8 +86,8 @@ print(api.freeze_parts("Assembly", dry_run=True))   # what would be frozen
 print(api.diagnose("Assembly")["broken"])
 ```
 
-Batch on a file without the GUI (MCP `execute_code_headless`, or
-`freecadcmd`): bill of materials, collisions, archive, diagnostic.
+Batch on a file without the GUI (`freecadcmd`): bill of materials,
+collisions, archive, diagnostic.
 
 ```python
 import FreeCAD as App
@@ -119,9 +133,35 @@ Requires FreeCAD 1.1 or newer.
 
 Version 0.1.0 – first workbench release of tools used and tested on FreeCAD 26.3rc2. Detailed French documentation and technical notes: [docs/README_fr.md](docs/README_fr.md).
 
+Every function is covered by the automatic tests (FreeCAD 1.1.4, 26.3 and the weekly build). **Stable** functions are used on real projects; **experimental** ones are new: tested, but not yet proven in daily work — check the result and report problems.
+
+| Function | Status |
+|---|---|
+| Freeze / relink parts and Std_Parts, check frozen assembly, repair, delete part joints | stable |
+| Outdated frozen parts, bill of materials (flat), archive, replace component, check collisions | stable |
+| Insert component (visual), local explorer (targeted refresh, cache), new part from selection, update part binder | stable |
+| Duplicate components (joints included), group fasteners, align elements, selection sets, reactivate assembly | stable |
+| Lightweight components (skeleton + mesh skins, level of detail) | stable |
+| Freeze sub-assemblies and imported STEP groups, "one solid per component" mode | experimental |
+| Bill of materials by sub-assembly (hierarchical) | experimental |
+| Import STEP as part | experimental |
+| Extract bodies | experimental |
+| Explorer favorites and tags, configurable cache folder | experimental |
+| QML panels (generic panels with widgets fallback) | experimental |
+
+## Releases
+
+`main` is the development branch; stable versions are published from the `release` branch, each with a new version and date in `package.xml` and a section in `CHANGELOG.md` (see [docs/RELEASING.md](docs/RELEASING.md)).
+
 ## Credits and license
 
-The local explorer is derived from [PiStock](https://github.com/pistock-org/PiStock) (© GA3Dtech). The generic panels (`bridge.py`, `qml_host.py`, `resources/qml/`) adapt code from [ShowRoom](https://github.com/oficinerobotica/ShowRoom) (dtpanels) and [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) (quick_host), both LGPL-2.1-or-later.
+Code taken from other projects, credited in the headers of the files that use it:
+
+| Project | Authors | License | Used in |
+|---|---|---|---|
+| [PiStock](https://github.com/pistock-org/PiStock) – local explorer | GA3Dtech | LGPL-2.1-or-later (relicensed by its author for this project) | `explorer.py` |
+| [ShowRoom](https://github.com/oficinerobotica/ShowRoom) – `dtpanels` (bridge, widget form, theme) | OficineRobotica | LGPL-2.1-or-later | `panel_model.py`, `bridge.py`, `qml_host.py`, `resources/qml/` |
+| [FreeCAD-Nxt](https://github.com/obelisk79/FreeCAD-Nxt) – `quick_host`, `qtquick` | obelisk79 | LGPL-2.1-or-later | `qml_host.py` |
 
 Licensed under the **LGPL-2.1-or-later**, like FreeCAD itself. No CLA: contributions are welcome under the same license.
 

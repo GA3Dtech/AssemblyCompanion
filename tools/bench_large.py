@@ -4,7 +4,7 @@
 tools/bench_large.py (Assembly Companion) - measure how FreeCAD copes with a
 very large assembly, BREP versus mesh.
 
-Run inside FreeCAD (Python console, macro or MCP):
+Run inside FreeCAD (Python console or macro):
 
     exec(open("<repo>/tools/bench_large.py").read())
     bench(n=500, mode="brep")      # frozen-like BREP copies (Part::Feature)

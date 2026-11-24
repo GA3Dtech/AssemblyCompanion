@@ -1,4 +1,20 @@
+# -*- coding: utf-8 -*-
 # SPDX-License-Identifier: LGPL-2.1-or-later
+# Assembly Companion - workbench commands
+# Copyright (C) 2026 GA3Dtech
+#
+# This library is free software; you can redistribute it and/or modify it
+# under the terms of the GNU Lesser General Public License as published by
+# the Free Software Foundation; either version 2.1 of the License, or (at
+# your option) any later version.
+#
+# This library is distributed in the hope that it will be useful, but
+# WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
+# or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Lesser General Public
+# License for more details.
+#
+# You should have received a copy of the GNU Lesser General Public License
+# along with this library; if not, see <https://www.gnu.org/licenses/>.
 """
 commands.py (Assembly Companion) - FreeCAD commands of the workbench.
 
@@ -67,7 +83,8 @@ def _selected_link_names():
 
 
 def _freeze():
-    _module("api").freeze_parts(App.ActiveDocument, _selected_link_names())
+    _module("api").freeze_parts(App.ActiveDocument, _selected_link_names(),
+                                mode=_module("prefs").get("FreezeMode"))
 
 
 def _relink():
@@ -145,6 +162,14 @@ def _align():
 
 def _insert_component():
     _module("explorer").show_insert_dock()
+
+
+def _extract_body():
+    _module("extract").extract_command()
+
+
+def _import_step():
+    _module("step_import").import_command()
 
 
 def _explorer():
@@ -252,6 +277,16 @@ COMMANDS = {
         tr("Browse your parts folder with thumbnails and insert parts into the "
             "active assembly; source files do not need to be open."),
         needs_document=False),
+    "AssemblyCompanion_ExtractBody": _Command(
+        _extract_body, "ExtractBody.svg", tr("Extract bodies"),
+        tr("Copy each selected Body with its whole tree (sketches, features, datums, "
+           "spreadsheets) into its own new file named like the new parts; binders become "
+           "independent. Optionally replace the bodies in the assembly by the new parts.")),
+    "AssemblyCompanion_ImportStep": _Command(
+        _import_step, "ImportStep.svg", tr("Import STEP as part"),
+        tr("Import a STEP file as one Std_Part (import groups turned into Parts, every "
+           "element visible) saved in a new FreeCAD file or in the assembly, and insert "
+           "it into the active assembly.")),
     "AssemblyCompanion_Explorer": _Command(
         _explorer, "Explorer.svg", tr("Local parts explorer"),
         tr("Browse a local master folder of FreeCAD files with thumbnails, in a "
@@ -262,21 +297,39 @@ COMMANDS = {
             "combine."), needs_document=False),
 }
 
-TOOLBAR_DURABLE = ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
-                   "AssemblyCompanion_DeleteJoints", "AssemblyCompanion_Diagnostic",
-                   "AssemblyCompanion_Outdated", "AssemblyCompanion_Bom",
-                   "AssemblyCompanion_Archive", "AssemblyCompanion_Lightweight",
-                   "AssemblyCompanion_RestoreFull", "AssemblyCompanion_OpenSource",
-                   "AssemblyCompanion_Reactivate"]
-TOOLBAR_LIBRARY = ["AssemblyCompanion_InsertComponent", "AssemblyCompanion_Duplicate",
-                   "AssemblyCompanion_Replace",
-                   "AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
-                   "AssemblyCompanion_Fasteners",
-                   "AssemblyCompanion_Explorer",
-                   "AssemblyCompanion_Align", "AssemblyCompanion_SelectionSets",
-                   "AssemblyCompanion_Collisions"]
-MENU = (TOOLBAR_DURABLE + ["AssemblyCompanion_Repair", "Separator"]
-        + TOOLBAR_LIBRARY)
+# Order of the toolbar and the menu: the workflow, from the parts library
+# to the finishing tools, one group per theme (separators between groups).
+GROUPS = [
+    ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent",
+                 "AssemblyCompanion_ImportStep"]),
+    ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_ExtractBody",
+               "AssemblyCompanion_UpdateBinder",
+               "AssemblyCompanion_Duplicate", "AssemblyCompanion_Replace",
+               "AssemblyCompanion_SelectionSets"]),
+    ("Durable", ["AssemblyCompanion_Freeze", "AssemblyCompanion_Relink",
+                 "AssemblyCompanion_Outdated", "AssemblyCompanion_Diagnostic",
+                 "AssemblyCompanion_DeleteJoints"]),
+    ("Large assemblies", ["AssemblyCompanion_Lightweight", "AssemblyCompanion_RestoreFull",
+                          "AssemblyCompanion_OpenSource"]),
+    ("Reports", ["AssemblyCompanion_Bom", "AssemblyCompanion_Collisions",
+                 "AssemblyCompanion_Archive"]),
+    ("Finishing", ["AssemblyCompanion_Fasteners", "AssemblyCompanion_Align",
+                   "AssemblyCompanion_Reactivate"]),
+]
+
+
+def _with_separators(extra=None):
+    out = []
+    for name, cmds in GROUPS:
+        if out:
+            out.append("Separator")
+        out += cmds + (extra or {}).get(name, [])
+    return out
+
+
+TOOLBAR = _with_separators()
+# The menu also holds the commands kept out of the toolbar
+MENU = _with_separators({"Durable": ["AssemblyCompanion_Repair"]})
 
 
 def register():
