@@ -803,6 +803,10 @@ def _copier_liaisons(doc, src, cont, chemins):
         if o_src is not None and o_copie is not None:
             correspondance[o_src] = o_copie
     perdues = []
+    # A frozen assembly is a snapshot: whatever the Assembly workbench does
+    # while the joints are recreated, every member gets its source placement
+    # back afterwards
+    places = dict((o.Name, o.Placement) for o in cont.Group if 'Placement' in o.PropertiesList)
     ordre = sorted(sgroupe.Group, key=lambda j: 'ObjectToGround' not in j.PropertiesList)
     for j in ordre:
         try:
@@ -810,6 +814,9 @@ def _copier_liaisons(doc, src, cont, chemins):
                 perdues.append(j.Label)
         except Exception as exc:
             perdues.append("%s (%s)" % (j.Label, exc))
+    for o in cont.Group:
+        if o.Name in places and o.Placement != places[o.Name]:
+            o.Placement = places[o.Name]
     if perdues:
         App.Console.PrintWarning(tr("Freeze: {n} joint(s) of {name} not copied, its parts "
                                     "keep their placement: {joints}").format(

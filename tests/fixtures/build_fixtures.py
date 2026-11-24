@@ -232,8 +232,12 @@ def build_subassembly(folder):
     lb = link(d_s, sub, b, "BlockB", App.Placement(App.Vector(0, 0, 30), App.Rotation()))
     d_s.recompute()
     ground(sub, la)
-    joint(sub, "Fixed", (la, [find_face(a.Shape, _top(30))] * 2),
-          (lb, [find_face(b.Shape, _top(0))] * 2), "Fixed")
+    joint(sub, "Revolute", (la, [find_face(a.Shape, _top(30))] * 2),
+          (lb, [find_face(b.Shape, _top(0))] * 2), "Revolute")
+    # Turned 30 degrees around the joint axis after solving: a placement the
+    # solver accepts but would not choose (a frozen copy must keep it)
+    lb.Placement = App.Placement(App.Vector(0, 0, 30), App.Rotation(App.Vector(0, 0, 1), 30),
+                                 App.Vector(15, 15, 0))
     _save(d_s, d_s.FileName)
     d_base = _new("sub_base")
     base = box_body(d_base, "Base", 100, 100, 10)

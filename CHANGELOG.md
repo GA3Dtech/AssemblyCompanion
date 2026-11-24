@@ -76,6 +76,9 @@ All notable changes to this project are documented here. The format follows
   (sub-assemblies as rows holding their parts, "Level" column in the CSV).
 
 ### Fixed
+- Freeze: a frozen sub-assembly could be rearranged (parts stacked) when its
+  source placements did not satisfy its joints: the joints are now copied
+  without pre-solve / solve and every frozen part keeps its source placement.
 - Explorer: the question about deleting the cache of the previous library
   folder could appear during a refresh (old folder taken from PiStock's
   setting); it is now asked only when the user changes the folder.

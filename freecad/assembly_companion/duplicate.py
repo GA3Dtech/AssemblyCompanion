@@ -157,10 +157,14 @@ def copy_joint_into(doc, joint, mapping, target_asm, paths):
                                    if sub_paths is not None else freeze.reecrire_sub(s, -1)
                                    for s in subs]))
         return out[0] if out else None
-    return _new_joint(joint, target_asm, mapping.get, refs)
+    return _new_joint(joint, target_asm, mapping.get, refs, solve=False)
 
 
-def _new_joint(joint, asm, target_of, refs_of):
+def _new_joint(joint, asm, target_of, refs_of, solve=True):
+    """solve=False (frozen copies): the references are set and the connector
+    placements computed, WITHOUT the pre-solve / solve of the joint task
+    panel, which would move the parts (a revolute pre-solve brings the
+    second part back to angle 0)."""
     import JointObject
     import UtilsAssembly
     group = UtilsAssembly.getJointGroup(asm)
@@ -195,9 +199,13 @@ def _new_joint(joint, asm, target_of, refs_of):
     for i in ("1", "2"):
         if getattr(joint, "Detach" + i, False):
             setattr(new, "Placement" + i, getattr(joint, "Placement" + i))
-    # Same call as the joint task panel: sets the references, computes the
-    # connector placements, pre-solves and solves the assembly
-    new.Proxy.setJointConnectors(new, refs)
+    if solve:
+        # Same call as the joint task panel: sets the references, computes the
+        # connector placements, pre-solves and solves the assembly
+        new.Proxy.setJointConnectors(new, refs)
+    else:
+        new.Reference1, new.Reference2 = refs[0], refs[1]
+        new.Proxy.updateJCSPlacements(new)
     new.purgeTouched()
     return new
 

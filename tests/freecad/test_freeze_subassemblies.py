@@ -284,3 +284,67 @@ def test_archive_holds_every_level(al_project, tmp_path):
                      "main.FCStd", "sub.FCStd", "subsub.FCStd"]
     with zipfile.ZipFile(z) as zf:
         assert len([n for n in zf.namelist() if n.endswith(".FCStd")]) == 7
+
+
+# ----------------------------------------------------------------------
+#  A chain of links of one body, in the file of the body (the "maillon"
+#  case): the frozen sub-assembly keeps every link where it was
+# ----------------------------------------------------------------------
+def _maillon(doc):
+    """A link plate with two holes: the joints use their circular edges,
+    like a real chain."""
+    import Part
+    body = doc.addObject("PartDesign::Body", "maillon")
+    shape = Part.makeBox(40, 10, 5).cut(Part.makeCylinder(2, 5, App.Vector(5, 5, 0))) \
+        .cut(Part.makeCylinder(2, 5, App.Vector(35, 5, 0)))
+    feat = body.newObject("PartDesign::FeatureBase", "Base")
+    feat.BaseFeature = doc.addObject("Part::Feature", "maillon_shape")
+    feat.BaseFeature.Shape = shape
+    doc.recompute()
+    return body
+
+
+def _hole_edge(shape, x, z):
+    for i, e in enumerate(shape.Edges):
+        c = getattr(e.Curve, "Center", None) if "Circle" in e.Curve.TypeId else None
+        if c is not None and abs(c.x - x) < 1e-6 and abs(c.z - z) < 1e-6:
+            return "Edge%d" % (i + 1)
+    raise AssertionError("hole edge not found")
+
+
+def test_chain_of_links_keeps_its_shape(tmp_path):
+    import build_fixtures as bf
+    api = _api()
+    folder = str(tmp_path)
+    d = App.newDocument("maillon")
+    d.saveAs(os.path.join(folder, "maillon.FCStd"))
+    body = _maillon(d)
+    sub = bf.new_assembly(d)
+    links = [bf.link(d, sub, body, "maillon%03d" % (i + 1),
+                     App.Placement(App.Vector(30 * i, 0, 5 * i), App.Rotation()))
+             for i in range(4)]
+    d.recompute()
+    bf.ground(sub, links[0])
+    end, start = _hole_edge(body.Shape, 35, 5), _hole_edge(body.Shape, 5, 0)
+    for a, b in zip(links, links[1:]):
+        bf.joint(sub, "Revolute", (a, [end] * 2), (b, [start] * 2), "Revolute")
+    # Moved apart after the joints were made, as in a sub-assembly never
+    # solved in this state: the frozen copy must keep the placements as
+    # they are (re-solving would stack the links)
+    for i, lk in enumerate(links[1:], 1):
+        lk.Placement = App.Placement(App.Vector(60 * i, 15 * i, -8 * i),
+                                     App.Rotation(App.Vector(0, 0, 1), 25 * i))
+    d.recompute()
+    d.save()
+    m = App.newDocument("main_chain")
+    m.saveAs(os.path.join(folder, "main.FCStd"))
+    asm = bf.new_assembly(m)
+    bf.link(m, asm, sub, "Assembly001", App.Placement(App.Vector(-6, 0, 0), App.Rotation()))
+    m.recompute()
+    m.save()
+    before = signature(m)
+    assert len(before) == 4
+    api.freeze_parts(m)
+    m.recompute()
+    assert signature(m) == before
+    check_frozen_and_alone(m, folder, "main.FCStd", before)
