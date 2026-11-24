@@ -45,7 +45,9 @@ All notable changes to this project are documented here. The format follows
 
 - Explorer cache: its size and location on the preference page, with an
   "Empty the cache" button; changing the parts library folder offers to
-  delete the cache of the previous folder.
+  delete the cache of the previous folder. The cache folder can be chosen
+  (systems that empty their cache folder daily): changing it offers to move
+  the existing cache or to start empty; the folder is private to the user.
 
 - Freeze: sub-assemblies (App::Link to an assembly and Assembly::AssemblyLink
   of FreeCAD 26.x, several levels) and imported STEP groups (App::LinkGroup)

@@ -264,3 +264,35 @@ def test_clear_cache_of_one_master(tmp_path, monkeypatch):
 def test_human_size():
     assert library.human_size(512) == "512 B"
     assert library.human_size(12 * 1024 * 1024) == "12.0 MB"
+
+
+# --- configurable cache folder ----------------------------------------
+def test_cache_folder_from_preference_and_private(tmp_path):
+    import stat
+    from freecad.assembly_companion import prefs
+    old = prefs.get("ExplorerCacheDir")
+    try:
+        prefs.put("ExplorerCacheDir", str(tmp_path / "mycache"))
+        d = library.cache_dir()
+        assert d == str(tmp_path / "mycache")
+        assert os.path.isdir(os.path.join(d, "thumbs"))
+        if os.name == "posix":
+            assert stat.S_IMODE(os.stat(d).st_mode) == 0o700
+        prefs.put("ExplorerCacheDir", "")
+        assert library.cache_dir() == library.default_cache_dir()
+    finally:
+        prefs.put("ExplorerCacheDir", old)
+
+
+def test_move_cache(tmp_path):
+    old, new = tmp_path / "old", tmp_path / "new"
+    (old / "thumbs").mkdir(parents=True)
+    (old / "scan_x.json").write_text("{}")
+    (old / "thumbs" / "a.png").write_bytes(b"png")
+    (new / "thumbs").mkdir(parents=True)
+    (new / "thumbs" / "b.png").write_bytes(b"kept")
+    assert library.move_cache(str(old), str(new)) == 2
+    assert not old.exists()
+    assert sorted(p.name for p in (new / "thumbs").iterdir()) == ["a.png", "b.png"]
+    assert (new / "scan_x.json").exists()
+    assert library.move_cache(str(new), str(new)) == 0

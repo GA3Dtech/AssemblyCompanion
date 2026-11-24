@@ -156,7 +156,9 @@ def folder_sort_key(master, folder):
 # ----------------------------------------------------------------------
 #  Disk cache (scan results and thumbnails)
 # ----------------------------------------------------------------------
-def cache_dir():
+def default_cache_dir():
+    """FreeCAD's user cache folder (some systems empty it often: the
+    preference ExplorerCacheDir can point elsewhere)."""
     base = None
     for fn in ("getUserCachePath", "getUserAppDataDir"):
         try:
@@ -165,9 +167,57 @@ def cache_dir():
                 break
         except Exception:
             pass
-    d = os.path.join(base or os.path.expanduser("~"), "assembly_explorer_cache")
-    os.makedirs(os.path.join(d, "thumbs"), exist_ok=True)
+    return os.path.join(base or os.path.expanduser("~"), "assembly_explorer_cache")
+
+
+def _private(path):
+    """Folder readable and writable by the current user only (POSIX; on
+    Windows the user profile is private already)."""
+    os.makedirs(path, mode=0o700, exist_ok=True)
+    if os.name == "posix":
+        try:
+            os.chmod(path, 0o700)
+        except OSError:
+            pass
+
+
+def cache_dir():
+    """Explorer cache folder: the ExplorerCacheDir preference, else the
+    default one. Created private to the current user."""
+    d = ""
+    try:
+        from . import prefs
+        d = prefs.get("ExplorerCacheDir")
+    except Exception:
+        pass
+    d = d or default_cache_dir()
+    _private(d)
+    _private(os.path.join(d, "thumbs"))
     return d
+
+
+def move_cache(old, new):
+    """Move the content of the cache folder `old` into `new` (files already
+    in `new` are kept). Returns the number of files moved."""
+    import shutil
+    if not old or not os.path.isdir(old) or norm(old) == norm(new):
+        return 0
+    _private(new)
+    n = 0
+    for dirpath, _dirs, files in os.walk(old):
+        rel = os.path.relpath(dirpath, old)
+        dst_dir = os.path.join(new, rel) if rel != "." else new
+        _private(dst_dir)
+        for f in files:
+            dst = os.path.join(dst_dir, f)
+            if not os.path.exists(dst):
+                try:
+                    shutil.move(os.path.join(dirpath, f), dst)
+                    n += 1
+                except OSError:
+                    pass
+    shutil.rmtree(old, ignore_errors=True)
+    return n
 
 
 def cache_key(*parts):

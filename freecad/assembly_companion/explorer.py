@@ -526,6 +526,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         are refreshed one folder at a time anyway."""
         master = os.path.normpath(self.path_edit.text().strip()) \
             if self.path_edit.text().strip() else ""
+        self.cdir = cache_dir()             # the cache folder may have changed
         old = get_saved_dir()
         if master and old and os.path.isdir(master) and \
                 library.norm(old) != library.norm(master):

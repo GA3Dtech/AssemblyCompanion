@@ -42,6 +42,7 @@ DEFAULTS = {
     "FreezeOnInsert": False,
     "BomHierarchical": False,       # BOM with sub-assemblies as nodes (else flat)
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
+    "ExplorerCacheDir": "",         # explorer cache folder ("" = FreeCAD's user cache)
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
     "UseQmlPanels": True,           # QML panels (widgets fallback without Qt Quick)
@@ -217,6 +218,12 @@ class AssemblyCompanionPreferencePage(object):
         clear.clicked.connect(self._clear_cache)
         h.addWidget(clear)
         f.addRow(tr("Explorer cache:"), row)
+        self.cache_dir = _FolderField(self.form, tr("Explorer cache folder"))
+        self.cache_dir.edit.setPlaceholderText(tr("Empty: FreeCAD's user cache folder"))
+        self.cache_dir.edit.setToolTip(
+            tr("Folder of the thumbnails and folder scans of the explorer. Choose a folder "
+               "that is not emptied by the system (temporary folders, company policies)."))
+        f.addRow(tr("Cache folder:"), self.cache_dir.widget)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -286,6 +293,31 @@ class AssemblyCompanionPreferencePage(object):
         lay.addWidget(g)
         lay.addStretch(1)
 
+    def _change_cache_dir(self, new):
+        """New cache folder: offer to move the existing cache there, or to
+        start with an empty one (thumbnails rebuilt at the next scan)."""
+        from . import library
+        old_pref = get("ExplorerCacheDir")
+        if new == old_pref:
+            return
+        old = old_pref or library.default_cache_dir()
+        target = new or library.default_cache_dir()
+        put("ExplorerCacheDir", new)
+        if library.norm(old) == library.norm(target) or not os.path.isdir(old):
+            return
+        QtWidgets = _qt()
+        box = QtWidgets.QMessageBox(self.form)
+        box.setWindowTitle(tr("Explorer cache"))
+        box.setText(tr("The cache folder changed. Move the existing cache ({size}) to the new "
+                       "folder, or start with an empty cache?").format(
+            size=library.human_size(library._tree_size(old)[0])))
+        move = box.addButton(tr("Move"), QtWidgets.QMessageBox.AcceptRole)
+        box.addButton(tr("Start empty"), QtWidgets.QMessageBox.RejectRole)
+        run = getattr(box, "exec", None) or box.exec_
+        run()
+        if box.clickedButton() is move:
+            library.move_cache(old, target)
+
     def _show_cache(self):
         from . import library
         info = library.cache_info()
@@ -310,6 +342,7 @@ class AssemblyCompanionPreferencePage(object):
         self.use_qml.setChecked(get("UseQmlPanels"))
         self.master_dir.edit.setText(get("LocalMasterDir"))
         self.new_dir.edit.setText(get("NewPartDir"))
+        self.cache_dir.edit.setText(get("ExplorerCacheDir"))
         self._show_cache()
         i = self.full_scan.findData(get("ExplorerFullScan"))
         self.full_scan.setCurrentIndex(i if i >= 0 else 0)
@@ -342,6 +375,7 @@ class AssemblyCompanionPreferencePage(object):
         put("LocalMasterDir", new)
         put("NewPartDir", self.new_dir.edit.text().strip())
         put("ExplorerFullScan", self.full_scan.currentData())
+        self._change_cache_dir(self.cache_dir.edit.text().strip())
         put("NewPartPrefix", self.prefix.text().strip())
         put("NewPartDigits", self.digits.value())
         put("NewPartRevision", self.revision.text().strip())
