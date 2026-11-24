@@ -15,7 +15,10 @@ Two branches:
 2. Bump `version` (semantic: `0.2.0`) and `date` (`YYYY-MM-DD`) in
    `package.xml`; move the `[Unreleased]` section of `CHANGELOG.md` under
    the new version and date; update the status section of `README.md`.
-3. Commit ("Release 0.2.0"), push, wait for the CI.
+3. Commit ("Release 0.2.0") on a branch named `prepare-0.2.0` (never
+   `release/...`: a branch `release/x` on GitHub prevents creating the
+   `release` branch), push it, open the pull request, wait for the CI and
+   merge; delete the branch.
 4. Merge `main` into `release` (fast-forward), tag it `v0.2.0`, push the
    branch and the tag; create the GitHub release from the tag with the
    changelog section as text.
