@@ -817,6 +817,13 @@ def _copier_liaisons(doc, src, cont, chemins):
     for o in cont.Group:
         if o.Name in places and o.Placement != places[o.Name]:
             o.Placement = places[o.Name]
+    # The joints of a frozen copy are kept for the record, their markers
+    # would only clutter the view of the main assembly
+    for j in groupe.Group:
+        try:
+            j.Visibility = False
+        except Exception:
+            pass
     if perdues:
         App.Console.PrintWarning(tr("Freeze: {n} joint(s) of {name} not copied, its parts "
                                     "keep their placement: {joints}").format(

@@ -57,3 +57,24 @@ def test_frozen_step_group_keeps_colours(step_project):
            getattr(o, "FigeObjet", None) == "AmeLink0"][0]
     assert ame.ViewObject.OverrideMaterial
     assert _rgb(ame.ViewObject.ShapeAppearance[0].DiffuseColor) == (0.1, 0.1, 0.9)
+
+
+def test_frozen_sub_assembly_joints_are_hidden(tmp_path):
+    import FreeCAD as App
+    sys.path.insert(0, os.path.join(os.path.dirname(HERE), "fixtures"))
+    import build_fixtures
+    from freecad.assembly_companion import api
+    before = set(App.listDocuments())
+    try:
+        folder = str(tmp_path / "subassembly")
+        build_fixtures.build_subassembly(folder)
+        for n in set(App.listDocuments()) - before:
+            App.closeDocument(n)
+        doc = App.openDocument(os.path.join(folder, "main.FCStd"))
+        api.freeze_parts(doc, ["Sub"])
+        fa = doc.getObject("Sub").LinkedObject
+        joints = [j for g in fa.Group if g.TypeId == "Assembly::JointGroup" for j in g.Group]
+        assert joints and not any(j.Visibility for j in joints)
+    finally:
+        for n in set(App.listDocuments()) - before:
+            App.closeDocument(n)
