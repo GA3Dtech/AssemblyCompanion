@@ -88,6 +88,9 @@ def test_active_assembly_found_with_both_keys(temp_doc, key):
 
 def test_close_guard_detects_linked_source(temp_doc, tmp_path, monkeypatch):
     from freecad.assembly_companion import close_guard
+    from PySide import QtWidgets
+    for _ in range(5):              # closings of earlier tests, deferred by the guard
+        QtWidgets.QApplication.processEvents()
     calls = []
     monkeypatch.setattr(close_guard, "_guarded", lambda path, label, deps: calls.append(deps))
     guard = close_guard._CloseGuard()
@@ -105,6 +108,6 @@ def test_close_guard_detects_linked_source(temp_doc, tmp_path, monkeypatch):
         App.closeDocument(src.Name)
         from PySide import QtWidgets
         QtWidgets.QApplication.processEvents()      # the guard defers with a timer
-        assert calls and calls[0] == {asm.Name: ["L"]}
+        assert {asm.Name: ["L"]} in calls       # other closings may be reported too
     finally:
         App.removeDocumentObserver(guard)
