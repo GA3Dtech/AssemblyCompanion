@@ -306,7 +306,8 @@ def _maillon(doc):
 
 def _hole_edge(shape, x, z):
     for i, e in enumerate(shape.Edges):
-        c = getattr(e.Curve, "Center", None) if "Circle" in e.Curve.TypeId else None
+        curve = e.Curve
+        c = (getattr(curve, "Location", None) or curve.Center) if "Circle" in curve.TypeId else None
         if c is not None and abs(c.x - x) < 1e-6 and abs(c.z - z) < 1e-6:
             return "Edge%d" % (i + 1)
     raise AssertionError("hole edge not found")
