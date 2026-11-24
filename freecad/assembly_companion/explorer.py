@@ -80,6 +80,9 @@ QFrame#card:hover { border-color: #059669; background: #ecfdf5; }
 QLabel#thumb { background: #f5f5f7; border-radius: 4px; color: #c7c7cc; }
 QLabel#name { font-size: 10px; }
 QLabel#rel { color: #9ca3af; font-size: 11px; }
+QLabel#badge { background: rgba(255,255,255,220); border: 1px solid #d2d2d7;
+               border-radius: 6px; padding: 0 3px; font-size: 11px; color: #92400e; }
+QLabel#tag { color: #92400e; font-size: 11px; }
 QLabel#count { color: #6b7280; font-size: 11px; background: #ecfdf5;
                padding: 1px 7px; border-radius: 8px; }
 QPushButton#folder { font-weight: 600; font-size: 13px; color: #065f46; border: none;
@@ -369,7 +372,7 @@ class FileCard(QtWidgets.QFrame):
     """Mini card of a .FCStd file: thumbnail + name. Left click = main
     action (open or insert), right click = menu with every action."""
 
-    def __init__(self, path, mtime, size, explorer):
+    def __init__(self, path, mtime, size, explorer, tag=""):
         super().__init__()
         self.path, self.mtime, self.size = path, mtime, size
         self.explorer = explorer
@@ -385,12 +388,21 @@ class FileCard(QtWidgets.QFrame):
         self.thumb.setFixedSize(THUMB, THUMB)
         self.thumb.setAlignment(QtCore.Qt.AlignCenter)
         lay.addWidget(self.thumb, alignment=QtCore.Qt.AlignCenter)
+        self.badge = QtWidgets.QLabel(self.thumb)        # emoji / #tag over the thumbnail
+        self.badge.setObjectName("badge")
+        self.badge.move(2, 2)
+        self.set_tag(tag)
         lbl = QtWidgets.QLabel(self.name)
         lbl.setObjectName("name")
         lbl.setAlignment(QtCore.Qt.AlignCenter)
         lbl.setWordWrap(True)
         lay.addWidget(lbl)
         self.setToolTip(path)
+
+    def set_tag(self, tag):
+        self.badge.setText(tag)
+        self.badge.adjustSize()
+        self.badge.setVisible(bool(tag))
 
     def mousePressEvent(self, event):
         if event.button() == QtCore.Qt.LeftButton:
@@ -489,6 +501,18 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.mode_combo.currentIndexChanged.connect(
             lambda *_: setattr(self, "mode", self.mode_combo.currentData()))
         row.addWidget(self.mode_combo)
+        self.favs_only = QtWidgets.QCheckBox(tr("Favorites only"))
+        self.favs_only.toggled.connect(lambda *_: self.apply_filter())
+        row.addWidget(self.favs_only)
+        self.favs_button = QtWidgets.QToolButton()
+        self.favs_button.setText("★")
+        self.favs_button.setToolTip(tr("Favorite folders (right-click a folder header to add "
+                                       "one)"))
+        self.favs_button.setPopupMode(QtWidgets.QToolButton.InstantPopup)
+        self.favs_menu = QtWidgets.QMenu(self.favs_button)
+        self.favs_menu.aboutToShow.connect(self._fill_favorites_menu)
+        self.favs_button.setMenu(self.favs_menu)
+        row.addWidget(self.favs_button)
         main.addLayout(row)
 
         self.freeze_check = QtWidgets.QCheckBox(tr("Freeze on insertion"))
@@ -617,7 +641,11 @@ class ExplorerWidget(QtWidgets.QWidget):
     # --- Display -------------------------------------------------------
     def _summary(self, scan):
         total = sum(len(v) for v in scan.values())
-        return tr("{files} file(s) in {folders} folder(s)").format(files=total, folders=len(scan))
+        text = tr("{files} file(s) in {folders} folder(s)").format(files=total, folders=len(scan))
+        missing = library.missing_favorites(self.master) if self.master else []
+        if missing:
+            text += "   " + tr("({n} favorite folder(s) not found: see ★)").format(n=len(missing))
+        return text
 
     def _show_message(self, text):
         self._stop_loading()
@@ -648,7 +676,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.cards, self.block_map = {}, {}
         self.tree_container.setUpdatesEnabled(False)
         new_cards = []
-        for d in library.view_folders(master, scan):
+        for d in self._view_order(master, scan):
             block, cards, rel = self._make_block(master, d, scan.get(d, []))
             self.tree_layout.addWidget(block)
             self.block_map[library.norm(d)] = (block, cards, rel)
@@ -666,7 +694,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         `changed` folders (and parents that appear / disappear). Other blocks
         keep their cards and thumbnails; scroll position and filter stay."""
         self.current_scan = scan
-        wanted = library.view_folders(master, scan)
+        wanted = self._view_order(master, scan)
         wanted_keys = {library.norm(d) for d in wanted}
         changed_keys = {library.norm(d) for d in changed}
         self.tree_container.setUpdatesEnabled(False)
@@ -701,7 +729,7 @@ class ExplorerWidget(QtWidgets.QWidget):
     def _sync_blocks(self, master, scan):
         """self.blocks (used by the filter) in display order."""
         self.blocks = [self.block_map[library.norm(d)]
-                       for d in library.view_folders(master, scan)
+                       for d in self._view_order(master, scan)
                        if library.norm(d) in self.block_map]
 
     def _load_thumbnails(self, cards):
@@ -737,8 +765,14 @@ class ExplorerWidget(QtWidgets.QWidget):
             if card is not None and card.mtime == mtime:
                 card.set_image(img)
 
+    def _view_order(self, master, scan):
+        """Folders in display order, favourites of this library first."""
+        favs = [f for f in library.favorites() if library.is_inside(f, master)]
+        return library.order_with_favorites(library.view_folders(master, scan), favs)
+
     def _make_block(self, master, path, files):
-        depth = len(library.folder_sort_key(master, path))
+        pinned = library.is_favorite(path)
+        depth = 0 if pinned else len(library.folder_sort_key(master, path))
         block = QtWidgets.QWidget()
         v = QtWidgets.QVBoxLayout(block)
         v.setSpacing(4)
@@ -754,8 +788,10 @@ class ExplorerWidget(QtWidgets.QWidget):
         sp = getattr(getattr(QtWidgets.QStyle, "StandardPixmap", QtWidgets.QStyle), "SP_DirIcon")
         icon.setPixmap(self.style().standardIcon(sp).pixmap(16, 16))
         header.addWidget(icon)
-        rel = "" if depth == 0 else os.path.relpath(path, master)
-        btn = QtWidgets.QPushButton(tr("(master)") if depth == 0 else os.path.basename(path))
+        is_master = library.norm(path) == library.norm(master)
+        rel = "" if is_master else os.path.relpath(path, master)
+        name = tr("(master)") if is_master else os.path.basename(path)
+        btn = QtWidgets.QPushButton(("★ " + name) if pinned else name)
         btn.setObjectName("folder")
         btn.setFlat(True)
         btn.setCursor(QtCore.Qt.PointingHandCursor)
@@ -770,6 +806,11 @@ class ExplorerWidget(QtWidgets.QWidget):
             r = QtWidgets.QLabel(rel)
             r.setObjectName("rel")
             header.addWidget(r)
+        tag = library.tag_of(path)
+        if tag:
+            t = QtWidgets.QLabel(tag)
+            t.setObjectName("tag")
+            header.addWidget(t)
         header.addStretch()
         cards = []
         if files:
@@ -787,8 +828,9 @@ class ExplorerWidget(QtWidgets.QWidget):
             h.setSpacing(8)
             h.setContentsMargins(2, 2, 2, 2)
             h.setAlignment(QtCore.Qt.AlignLeft)
+            tags = library.tags()           # read once per block, not once per card
             for fpath, mtime, size in files:
-                card = FileCard(fpath, mtime, size, self)
+                card = FileCard(fpath, mtime, size, self, tags.get(library.norm(fpath), ""))
                 self.cards_created += 1
                 h.addWidget(card)
                 self.cards[fpath] = card
@@ -800,6 +842,12 @@ class ExplorerWidget(QtWidgets.QWidget):
 
     def folder_menu(self, path, global_pos):
         menu = QtWidgets.QMenu(self)
+        if library.is_favorite(path):
+            menu.addAction(tr("Remove from favorites"), lambda: self.toggle_favorite(path))
+        else:
+            menu.addAction(tr("Add to favorites"), lambda: self.toggle_favorite(path))
+        menu.addAction(tr("Tag (emoji or #tag)…"), lambda: self.edit_tag(path))
+        menu.addSeparator()
         menu.addAction(tr("Refresh this folder"),
                        lambda: self.refresh_folder(path, False))
         menu.addAction(tr("Refresh this folder and its subfolders"),
@@ -808,12 +856,76 @@ class ExplorerWidget(QtWidgets.QWidget):
         menu.addAction(tr("Open in the file manager"), lambda: self.open_in_os(path))
         menu.exec(global_pos) if hasattr(menu, "exec") else menu.exec_(global_pos)
 
+    # --- Favourites and tags -------------------------------------------
+    def toggle_favorite(self, path):
+        library.set_favorite(path, not library.is_favorite(path))
+        if self.master and self.current_scan:
+            self._build(self.master, self.current_scan)    # thumbnails come from the cache
+
+    def edit_tag(self, path):
+        text, ok = QtWidgets.QInputDialog.getText(
+            self, tr("Tag"), tr("Emoji or short #tag shown on the thumbnail (empty: none):"),
+            text=library.tag_of(path))
+        if ok:
+            self.set_tag(path, text)
+
+    def set_tag(self, path, text):
+        tag = library.set_tag(path, text)
+        card = self.cards.get(path)
+        if card is not None:
+            card.set_tag(tag)
+        elif self.master and self.current_scan:
+            self._build(self.master, self.current_scan)
+        return tag
+
+    def _fill_favorites_menu(self):
+        m = self.favs_menu
+        m.clear()
+        shown = 0
+        for f in library.favorites():
+            if self.master and not library.is_inside(f, self.master):
+                continue
+            if os.path.isdir(f):
+                m.addAction("★ " + os.path.basename(f) or f, lambda p=f: self.show_folder(p))
+            else:
+                a = m.addAction(tr("{path} (not found)").format(path=f))
+                a.setEnabled(False)
+            shown += 1
+        if not shown:
+            a = m.addAction(tr("No favorite folder yet: right-click a folder header."))
+            a.setEnabled(False)
+        missing = library.missing_favorites(self.master)
+        if missing:
+            m.addSeparator()
+            m.addAction(tr("Remove the favorites not found"), self._remove_missing_favorites)
+
+    def _remove_missing_favorites(self):
+        for f in library.missing_favorites(self.master):
+            library.set_favorite(f, False)
+
+    def show_folder(self, path):
+        entry = self.block_map.get(library.norm(path))
+        if entry is not None:
+            self.scroll.ensureWidgetVisible(entry[0], 0, 0)
+
     # --- Filter --------------------------------------------------------
     def apply_filter(self):
         txt = self.filter_edit.text().strip().lower()
         shown = 0
         self.tree_container.setUpdatesEnabled(False)
+        only_favs = self.favs_only.isChecked()
+        fav_rels = set()
+        if only_favs and self.master:
+            for f in library.favorites():
+                if library.is_inside(f, self.master):
+                    r = os.path.relpath(f, self.master)
+                    fav_rels.add("" if r == "." else r.lower())
         for block, cards, rel in self.blocks:
+            if only_favs and rel not in fav_rels:
+                block.setVisible(False)
+                for c in cards:
+                    c.setVisible(False)
+                continue
             if not txt:
                 for c in cards:
                     c.setVisible(True)
@@ -846,6 +958,8 @@ class ExplorerWidget(QtWidgets.QWidget):
         menu.addAction(tr("Insert into the active assembly"), lambda: self.insert_file(card.path))
         menu.addAction(tr("Open"), lambda: self.open_file(card.path))
         menu.addAction(tr("Open folder"), lambda: self.open_in_os(os.path.dirname(card.path)))
+        menu.addSeparator()
+        menu.addAction(tr("Tag (emoji or #tag)…"), lambda: self.edit_tag(card.path))
         pos = event.globalPosition().toPoint() if hasattr(event, "globalPosition") \
             else event.globalPos()
         menu.exec(pos) if hasattr(menu, "exec") else menu.exec_(pos)

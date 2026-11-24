@@ -43,6 +43,8 @@ DEFAULTS = {
     "BomHierarchical": False,       # BOM with sub-assemblies as nodes (else flat)
     "StepImportMode": "file",       # Import STEP as part: "file" or "document" (last used)
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
+    "ExplorerFavorites": "[]",      # JSON list of favourite folders (pinned on top)
+    "ExplorerTags": "{}",           # JSON {path: emoji or #tag} shown on thumbnails
     "ExplorerCacheDir": "",         # explorer cache folder ("" = FreeCAD's user cache)
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
@@ -225,6 +227,9 @@ class AssemblyCompanionPreferencePage(object):
             tr("Folder of the thumbnails and folder scans of the explorer. Choose a folder "
                "that is not emptied by the system (temporary folders, company policies)."))
         f.addRow(tr("Cache folder:"), self.cache_dir.widget)
+        clear_favs = QtWidgets.QPushButton(tr("Clear the favorites and tags of the explorer"))
+        clear_favs.clicked.connect(self._clear_favorites)
+        f.addRow(clear_favs)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -318,6 +323,15 @@ class AssemblyCompanionPreferencePage(object):
         run()
         if box.clickedButton() is move:
             library.move_cache(old, target)
+
+    def _clear_favorites(self):
+        from . import library
+        QtWidgets = _qt()
+        r = QtWidgets.QMessageBox.question(
+            self.form, tr("Explorer"), tr("Remove every favorite folder and every tag?"),
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+        if r == QtWidgets.QMessageBox.Yes:
+            library.clear_favorites_and_tags()
 
     def _show_cache(self):
         from . import library

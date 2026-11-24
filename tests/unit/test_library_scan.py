@@ -296,3 +296,56 @@ def test_move_cache(tmp_path):
     assert sorted(p.name for p in (new / "thumbs").iterdir()) == ["a.png", "b.png"]
     assert (new / "scan_x.json").exists()
     assert library.move_cache(str(new), str(new)) == 0
+
+
+# --- favourites and tags -----------------------------------------------
+@pytest.fixture
+def clean_prefs():
+    from freecad.assembly_companion import prefs
+    saved = prefs.get("ExplorerFavorites"), prefs.get("ExplorerTags")
+    library.clear_favorites_and_tags()
+    yield
+    prefs.put("ExplorerFavorites", saved[0])
+    prefs.put("ExplorerTags", saved[1])
+
+
+def test_favorites_pinned_first(tree, clean_prefs):
+    scan = library.scan_master(tree)
+    folders = library.view_folders(tree, scan)
+    c_d = os.path.join(tree, "C", "D")
+    b = os.path.join(tree, "B")
+    library.set_favorite(c_d, True)
+    library.set_favorite(b, True)
+    assert library.is_favorite(c_d + os.sep) and library.favorites() == [c_d, b]
+    ordered = library.order_with_favorites(folders)
+    assert ordered[:2] == [c_d, b] and sorted(ordered) == sorted(folders)
+    library.set_favorite(c_d, False)
+    assert library.order_with_favorites(folders)[0] == b
+
+
+def test_missing_favorite_does_not_break(tree, clean_prefs):
+    import shutil
+    b = os.path.join(tree, "B")
+    library.set_favorite(b, True)
+    shutil.rmtree(b)
+    scan = library.scan_master(tree)
+    folders = library.view_folders(tree, scan)
+    assert b not in library.order_with_favorites(folders)
+    assert library.missing_favorites(tree) == [b]
+    assert library.missing_favorites(os.path.join(tree, "A")) == []
+
+
+def test_tags(tree, clean_prefs):
+    f = os.path.join(tree, "A", "a1.FCStd")
+    assert library.set_tag(f, "  urgent ") == "#urgent"
+    assert library.tag_of(f) == "#urgent"
+    assert library.set_tag(f, "😀") == "😀"
+    assert library.set_tag(f, "#averyveryverylongtag") == "#averyveryve"
+    assert library.set_tag(f, "") == "" and library.tag_of(f) == ""
+
+
+def test_corrupted_preferences_are_ignored(clean_prefs):
+    from freecad.assembly_companion import prefs
+    prefs.put("ExplorerFavorites", "{not json")
+    prefs.put("ExplorerTags", "[1, 2]")
+    assert library.favorites() == [] and library.tags() == {}

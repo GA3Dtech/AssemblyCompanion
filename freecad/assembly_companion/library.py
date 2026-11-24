@@ -327,3 +327,94 @@ def human_size(n):
         if n < 1024 or unit == "GB":
             return ("%d %s" if unit == "B" else "%.1f %s") % (n, unit)
         n /= 1024.0
+
+
+# ----------------------------------------------------------------------
+#  Favourite folders and tags (stored in the user preferences, never in
+#  the library folders themselves)
+# ----------------------------------------------------------------------
+TAG_MAX = 12
+
+
+def _pref_json(key, default):
+    try:
+        from . import prefs
+        value = json.loads(prefs.get(key) or "")
+        return value if isinstance(value, type(default)) else default
+    except Exception:
+        return default
+
+
+def _put_json(key, value):
+    from . import prefs
+    prefs.put(key, json.dumps(value, ensure_ascii=False))
+
+
+def favorites():
+    """Favourite folders, in the order they were added."""
+    return [f for f in _pref_json("ExplorerFavorites", []) if isinstance(f, str)]
+
+
+def is_favorite(folder):
+    return norm(folder) in set(norm(f) for f in favorites())
+
+
+def set_favorite(folder, on):
+    favs = [f for f in favorites() if norm(f) != norm(folder)]
+    if on:
+        favs.append(os.path.normpath(folder))
+    _put_json("ExplorerFavorites", favs)
+    return on
+
+
+def missing_favorites(master=None):
+    """Favourites that no longer exist (moved, deleted, share offline);
+    with `master`, only those that were under it."""
+    return [f for f in favorites() if not os.path.isdir(f)
+            and (master is None or is_inside(f, master))]
+
+
+def order_with_favorites(folders, favs=None):
+    """`folders` (display order) with the favourite ones first, in the
+    order of the favourites; the others keep their order."""
+    favs = favorites() if favs is None else favs
+    keys = dict((norm(d), d) for d in folders)
+    pinned = [keys[norm(f)] for f in favs if norm(f) in keys]
+    pinned_keys = set(norm(d) for d in pinned)
+    return pinned + [d for d in folders if norm(d) not in pinned_keys]
+
+
+def tags():
+    return dict((k, v) for k, v in _pref_json("ExplorerTags", {}).items()
+                if isinstance(k, str) and isinstance(v, str))
+
+
+def tag_of(path):
+    t = tags()
+    return t.get(norm(path), "")
+
+
+def clean_tag(text):
+    """An emoji or a short #tag: spaces removed, at most TAG_MAX characters;
+    a word without '#' gets one."""
+    text = "".join((text or "").split())[:TAG_MAX]
+    if text and text[0].isalnum() and text.isascii():
+        text = ("#" + text)[:TAG_MAX]
+    return text
+
+
+def set_tag(path, text):
+    """Tag of a file or folder ("" removes it). Returns the stored tag."""
+    t = tags()
+    tag = clean_tag(text)
+    if tag:
+        t[norm(path)] = tag
+    else:
+        t.pop(norm(path), None)
+    _put_json("ExplorerTags", t)
+    return tag
+
+
+def clear_favorites_and_tags():
+    _put_json("ExplorerFavorites", [])
+    _put_json("ExplorerTags", {})

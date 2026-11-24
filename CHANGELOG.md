@@ -57,6 +57,10 @@ All notable changes to this project are documented here. The format follows
   component that cannot be frozen stays linked and is reported, and any
   error undoes the whole freeze.
 
+- Explorer favorites and tags: right-click a folder to add it to the
+  favorites (pinned on top, ★ menu, "Favorites only" filter, missing
+  folders reported); emoji or short #tag shown on a card or a folder
+  header; stored in the user preferences (button to clear them).
 - Extract bodies: each selected Body goes with its whole tree to its own new
   file (new-part naming), binders detached, outside attachments removed,
   report of what still points outside; option to replace the bodies in the
