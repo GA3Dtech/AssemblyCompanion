@@ -42,6 +42,11 @@ except ImportError:                       # plain Python (tools, tests)
 # ----------------------------------------------------------------------
 #  Paths
 # ----------------------------------------------------------------------
+# Files listed by the explorer: FreeCAD files, and STEP files (inserted
+# through "Import STEP as part")
+LIBRARY_EXTENSIONS = (".fcstd", ".step", ".stp")
+
+
 def norm(path):
     """Comparable form of a path (case-insensitive on Windows)."""
     return os.path.normcase(os.path.normpath(path))
@@ -77,7 +82,7 @@ def scan_folder(path, recursive=True):
                 if e.is_dir(follow_symlinks=False):
                     if not e.name.startswith('.'):
                         subdirs.append(e.path)
-                elif e.name.lower().endswith(".fcstd"):
+                elif e.name.lower().endswith(LIBRARY_EXTENSIONS):
                     st = e.stat()
                     files.append((e.path, st.st_mtime, st.st_size))
             except OSError:

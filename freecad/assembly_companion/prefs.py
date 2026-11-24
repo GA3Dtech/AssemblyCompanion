@@ -41,6 +41,7 @@ DEFAULTS = {
     "LocalMasterDir": "",           # parts library root (explorer, insert)
     "FreezeOnInsert": False,
     "BomHierarchical": False,       # BOM with sub-assemblies as nodes (else flat)
+    "StepImportMode": "file",       # Import STEP as part: "file" or "document" (last used)
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
     "ExplorerCacheDir": "",         # explorer cache folder ("" = FreeCAD's user cache)
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)

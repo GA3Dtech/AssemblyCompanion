@@ -171,3 +171,13 @@ disk cache of the library is updated with the result.
 Parts library as last seen by the explorer (disk cache, no folder
 walk: instant on a network share); scans it when there is no cache.
 Same return value as scan_library().
+
+### `import_step(doc, step_path, assembly=None, mode='file', file_path=None, insert=True)`
+
+Import the STEP file `step_path` as one Std_Part (import groups turned
+into Parts: every element visible and usable for joints) and insert it
+into `assembly` (name; None = the first assembly of `doc`). mode "file":
+the Part is saved in a new .FCStd (`file_path`, default next to the
+assembly, named after the STEP file; never overwritten) and linked;
+mode "document": the Part is created in `doc` as a component.
+-> {"mode", "file", "part", "document", "inserted", "solids"}

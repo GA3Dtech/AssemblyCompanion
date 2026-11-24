@@ -57,11 +57,20 @@ All notable changes to this project are documented here. The format follows
   component that cannot be frozen stays linked and is reported, and any
   error undoes the whole freeze.
 
+- Import STEP as part: the import groups of the STEP importer (App::LinkGroup)
+  become Std_Parts, so every element is visible and usable for joints in
+  the assembly; the Part is saved in a new FreeCAD file next to the assembly
+  (default) or created in the assembly document, then inserted. The user's
+  STEP import settings are used. Also from the explorer, which now lists
+  STEP files (click / right-click to insert). API `import_step`.
 - BOM by sub-assembly: preference "Bill of materials by sub-assembly" and
   `api.bom(doc, hierarchical=True)` / `export_bom_csv(..., hierarchical=True)`
   (sub-assemblies as rows holding their parts, "Level" column in the CSV).
 
 ### Fixed
+- Explorer: the question about deleting the cache of the previous library
+  folder could appear during a refresh (old folder taken from PiStock's
+  setting); it is now asked only when the user changes the folder.
 - Freeze: a sub-assembly lost all its parts (only Bodies and solids were
   copied into the frozen container), and the parts of an imported STEP
   group disappeared.

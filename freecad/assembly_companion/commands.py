@@ -148,6 +148,10 @@ def _insert_component():
     _module("explorer").show_insert_dock()
 
 
+def _import_step():
+    _module("step_import").import_command()
+
+
 def _explorer():
     _module("explorer").show_explorer_tab()
 
@@ -253,6 +257,11 @@ COMMANDS = {
         tr("Browse your parts folder with thumbnails and insert parts into the "
             "active assembly; source files do not need to be open."),
         needs_document=False),
+    "AssemblyCompanion_ImportStep": _Command(
+        _import_step, "ImportStep.svg", tr("Import STEP as part"),
+        tr("Import a STEP file as one Std_Part (import groups turned into Parts, every "
+           "element visible) saved in a new FreeCAD file or in the assembly, and insert "
+           "it into the active assembly.")),
     "AssemblyCompanion_Explorer": _Command(
         _explorer, "Explorer.svg", tr("Local parts explorer"),
         tr("Browse a local master folder of FreeCAD files with thumbnails, in a "
@@ -266,7 +275,8 @@ COMMANDS = {
 # Order of the toolbar and the menu: the workflow, from the parts library
 # to the finishing tools, one group per theme (separators between groups).
 GROUPS = [
-    ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent"]),
+    ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent",
+                 "AssemblyCompanion_ImportStep"]),
     ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_UpdateBinder",
                "AssemblyCompanion_Duplicate", "AssemblyCompanion_Replace",
                "AssemblyCompanion_SelectionSets"]),

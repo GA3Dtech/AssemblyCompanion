@@ -136,6 +136,10 @@ save_scan_cache = library.save_scan_cache
 # ----------------------------------------------------------------------
 #  Thumbnails (worker threads; QImage is thread-safe, QPixmap is not)
 # ----------------------------------------------------------------------
+def _is_step(path):
+    return os.path.splitext(path)[1].lower() in (".step", ".stp")
+
+
 def extract_fcstd_thumbnail(path):
     """PNG bytes of the thumbnail embedded in a .FCStd (ZIP archive), or None."""
     try:
@@ -161,7 +165,7 @@ def load_thumbnail(cdir, path, mtime, size):
         return None if img.isNull() else img
     if os.path.exists(none):
         return None
-    data = extract_fcstd_thumbnail(path)
+    data = None if _is_step(path) else extract_fcstd_thumbnail(path)
     img = QtGui.QImage()
     if not data or not img.loadFromData(data) or img.isNull():
         try:
@@ -396,7 +400,7 @@ class FileCard(QtWidgets.QFrame):
 
     def set_image(self, img):
         if img is None:
-            self.thumb.setText(tr("(no\nthumbnail)"))
+            self.thumb.setText("STEP" if _is_step(self.path) else tr("(no\nthumbnail)"))
             return
         pix = QtGui.QPixmap.fromImage(img).scaled(
             THUMB, THUMB, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
@@ -460,7 +464,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         row = QtWidgets.QHBoxLayout()
         row.addWidget(QtWidgets.QLabel(tr("Master folder:")))
         self.path_edit = QtWidgets.QLineEdit()
-        self.path_edit.returnPressed.connect(self.refresh)
+        self.path_edit.returnPressed.connect(self._master_changed_by_user)
         row.addWidget(self.path_edit, 1)
         b = QtWidgets.QPushButton(tr("Browse…"))
         b.clicked.connect(self._browse)
@@ -516,9 +520,19 @@ class ExplorerWidget(QtWidgets.QWidget):
             self, tr("Choose the master folder to explore"), start)
         if path:
             self.path_edit.setText(path)
-            self.refresh()
+            self._master_changed_by_user()
 
     # --- Scan ----------------------------------------------------------
+    def _master_changed_by_user(self):
+        """The user typed or browsed another folder: offer to delete the
+        cache of the previous one (only then: never during a refresh)."""
+        master = self.path_edit.text().strip()
+        old = prefs.get(PARAM_DIR_KEY)      # this addon's setting, not PiStock's
+        if master and old and os.path.isdir(master) and \
+                library.norm(old) != library.norm(master):
+            prefs.offer_clear_master_cache(old, self)
+        self.refresh()
+
     def refresh(self, initial=False):
         """Show the folder (from the disk cache when there is one), then
         queue a full rescan. At opening (`initial`) the rescan follows the
@@ -527,10 +541,6 @@ class ExplorerWidget(QtWidgets.QWidget):
         master = os.path.normpath(self.path_edit.text().strip()) \
             if self.path_edit.text().strip() else ""
         self.cdir = cache_dir()             # the cache folder may have changed
-        old = get_saved_dir()
-        if master and old and os.path.isdir(master) and \
-                library.norm(old) != library.norm(master):
-            prefs.offer_clear_master_cache(old, self)
         set_saved_dir(master)
         if not master or not os.path.isdir(master):
             self.master = None
@@ -841,6 +851,16 @@ class ExplorerWidget(QtWidgets.QWidget):
         menu.exec(pos) if hasattr(menu, "exec") else menu.exec_(pos)
 
     def insert_file(self, path):
+        if _is_step(path):                  # imported as a part, see step_import.py
+            try:
+                from . import step_import
+                r = step_import.import_command(path)
+                if r is not None:
+                    self.status.setText(tr("“{name}” inserted.").format(
+                        name=os.path.basename(path)))
+            except Exception as e:
+                QtWidgets.QMessageBox.warning(self, tr("Insertion failed"), str(e))
+            return
         try:
             QtWidgets.QApplication.setOverrideCursor(QtCore.Qt.WaitCursor)
             try:
@@ -856,6 +876,10 @@ class ExplorerWidget(QtWidgets.QWidget):
 
     def open_file(self, path):
         try:
+            if _is_step(path):
+                import ImportGui
+                ImportGui.open(path)
+                return
             App.openDocument(path)
         except Exception as e:
             App.Console.PrintError(

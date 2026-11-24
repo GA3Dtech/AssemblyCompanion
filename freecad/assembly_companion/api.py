@@ -58,7 +58,7 @@ __all__ = [
     "duplicate_components", "make_lightweight", "restore_full", "new_part_from_selection",
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
-    "scan_library", "list_library",
+    "scan_library", "list_library", "import_step",
     "AssemblyCompanionError",
 ]
 
@@ -543,6 +543,44 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  STEP import
+# ----------------------------------------------------------------------
+def import_step(doc, step_path, assembly=None, mode="file", file_path=None, insert=True):
+    """Import the STEP file `step_path` as one Std_Part (import groups turned
+    into Parts: every element visible and usable for joints) and insert it
+    into `assembly` (name; None = the first assembly of `doc`). mode "file":
+    the Part is saved in a new .FCStd (`file_path`, default next to the
+    assembly, named after the STEP file; never overwritten) and linked;
+    mode "document": the Part is created in `doc` as a component.
+    -> {"mode", "file", "part", "document", "inserted", "solids"}"""
+    from . import step_import
+    doc = _doc(doc)
+    if mode not in step_import.MODES:
+        raise UnsupportedObjectError(tr("Unknown import mode: {mode}").format(mode=mode),
+                                     mode=mode)
+    if not os.path.isfile(step_path):
+        raise SourceNotFoundError(tr("File not found: {file}").format(file=step_path),
+                                  path=step_path)
+    if mode == "file" and not doc.FileName and not file_path:
+        raise NoDocumentError(tr("Save the assembly first: the new part file is created "
+                                 "next to it."), document=doc.Name)
+    asm = None
+    if insert:
+        if assembly is not None:
+            asm = _obj(doc, assembly)
+        else:
+            asms = _assemblies(doc)
+            if not asms:
+                raise NoAssemblyError(tr("No assembly in {doc}.").format(doc=doc.Label),
+                                      document=doc.Name)
+            asm = asms[0]
+    try:
+        return step_import.import_step(doc, step_path, asm, mode, file_path, insert)
+    except IOError as exc:
+        raise UnsupportedObjectError(str(exc), path=file_path or step_path)
 
 
 # ----------------------------------------------------------------------
