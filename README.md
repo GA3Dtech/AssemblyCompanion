@@ -2,6 +2,21 @@
 
 **Workshop-grade tools for FreeCAD's built-in Assembly: durable assemblies, visual parts library, selection sets.**
 
+> [!WARNING]
+> **Still experimental: be careful with your files.** Work on copies when the
+> files matter, and keep backups. The author cannot be held responsible in
+> any case for misuse, transformed or damaged files, or file
+> incompatibilities. It is up to each user to test the tools carefully and
+> progressively, with their own judgement and for their own needs: what
+> worked for someone may not behave the same for you.
+>
+> Projects made of external links to other files, with joints between the
+> parts, are very complex: covering every case takes a lot of time, and the
+> successive FreeCAD versions multiply the combinations. The FreeCAD file
+> format nevertheless remains, through all this evolution, very stable
+> overall — and the very purpose of this workbench is to bring even more
+> stability, over the long term.
+
 Assembly Companion is **not another assembly workbench**. It works *with* FreeCAD's built-in Assembly workbench, on its files and its joints, and adds what long-lived, real-world projects need.
 
 ## Why
@@ -60,6 +75,16 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference, new part from the set. With **Keep faces, edges and vertices** checked, a set stores the chosen elements themselves (marked ◆) and selects them again; **Shape for TechDraw** turns a set into a SubShapeBinder of only those elements, to draw just what matters (no screw threads or cosmetic details). Opening the panel leaves the assembly edit mode so faces, edges and vertices can be picked. Made for exploded STEP files and large assemblies. |
 
 When the built-in **Assembly** workbench is active, the Companion tools are available in a separate **Assembly Companion** toolbar that can be moved, docked anywhere or hidden like any other toolbar.
+
+### Tips and known behaviours
+
+- **Manual placement:** FreeCAD's *Transform* tool (right-click → Transform)
+  stays very handy to place a part by hand, also in an assembly of the
+  built-in Assembly workbench.
+- **Joints on a SubShapeBinder:** with the built-in Assembly workbench, a
+  joint between a SubShapeBinder and a part can show an offset in the 3D
+  view. It is not a problem for the assembly, only a display effect to be
+  aware of.
 
 ## Preferences and languages
 

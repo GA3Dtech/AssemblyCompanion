@@ -1,5 +1,24 @@
 # Outils d'assemblage FreeCAD : figeage façon A2+, alignement rapide, jeux de sélection et explorateur visuel
 
+> [!WARNING]
+> **Encore expérimental : soyez prudent avec vos fichiers.** Travaillez sur
+> des copies quand les fichiers sont importants, et gardez des sauvegardes.
+> L'auteur ne peut en aucun cas être tenu pour responsable en cas de mauvaise
+> utilisation, de transformation ou de dégradation de fichiers, ou
+> d'incompatibilité de fichiers. Il est du devoir de chacun de tester l'outil
+> prudemment et progressivement, selon son propre jugement et selon ses
+> spécificités : ce qui a marché chez quelqu'un ne sera peut-être pas
+> identique chez vous.
+>
+> L'organisation avec des liens externes vers d'autres fichiers, avec des
+> liaisons entre les pièces, est très complexe et demande beaucoup de temps
+> pour être totalement couverte. Les différentes révisions de FreeCAD
+> multiplient les versions et compliquent encore potentiellement cette
+> problématique. On notera toutefois que le format de fichier FreeCAD reste,
+> malgré toute cette évolution, globalement très stable. Le but de cet
+> atelier est justement d'en apporter encore plus, et toujours sur le long
+> terme.
+
 Version 1.3, testée sur FreeCAD 26.3rc2 (Windows).
 
 > **Assembly Companion 0.2.0** – Ce document vient de l'époque des macros. Dans le workbench, chaque macro est devenue une commande :
@@ -162,6 +181,14 @@ Ce qui change : le dossier est lu avec `os.scandir` (sous Windows, taille et dat
 - `Part.Conic.Center` est déprécié depuis 26.3 (`Location` à la place).
 
 ## Limites connues
+
+- **Placement manuel** : l'outil *Transformer* de FreeCAD (clic droit →
+  Transformer) reste bien pratique pour placer une pièce à la main, y compris
+  dans un assemblage de l'atelier Assembly intégré.
+- **Liaisons sur un SubShapeBinder** : avec l'atelier Assembly intégré, une
+  liaison entre un SubShapeBinder et une pièce peut faire apparaître un
+  décalage dans la vue 3D. Ce n'est pas un problème pour l'assemblage,
+  seulement un effet d'affichage à connaître.
 
 - Explorateur : « Figer à l'insertion » ignore les fichiers dont l'objet principal est un Std_Part (multi-corps), comme le figeage.
 
