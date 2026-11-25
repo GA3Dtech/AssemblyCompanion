@@ -149,7 +149,7 @@
   "A file cannot be inserted into itself.": "Eine Datei kann nicht in sich selbst eingefügt werden.",
   "Refresh all": "Alles aktualisieren",
   "Read the whole folder again (unchanged thumbnails stay cached). Right-click a folder header to refresh only that folder.": "Den ganzen Ordner neu einlesen (unveränderte Vorschaubilder bleiben im Cache). Rechtsklick auf eine Ordnerüberschrift aktualisiert nur diesen Ordner.",
-  "Filter by file or folder name…": "Nach Datei- oder Ordnername filtern…",
+  "Filter by file or folder name, or #tag…": "Nach Datei- oder Ordnername oder #Tag filtern…",
   "Click = open": "Klick = öffnen",
   "Click = insert into the assembly": "Klick = in die Baugruppe einfügen",
   "Favorites only": "Nur Favoriten",

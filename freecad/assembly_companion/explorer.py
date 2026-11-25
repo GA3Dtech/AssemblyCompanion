@@ -400,6 +400,7 @@ class FileCard(QtWidgets.QFrame):
         self.setToolTip(path)
 
     def set_tag(self, tag):
+        self.tag = tag or ""
         self.badge.setText(tag)
         self.badge.adjustSize()
         self.badge.setVisible(bool(tag))
@@ -490,7 +491,7 @@ class ExplorerWidget(QtWidgets.QWidget):
 
         row = QtWidgets.QHBoxLayout()
         self.filter_edit = QtWidgets.QLineEdit()
-        self.filter_edit.setPlaceholderText(tr("Filter by file or folder name…"))
+        self.filter_edit.setPlaceholderText(tr("Filter by file or folder name, or #tag…"))
         self.filter_edit.setClearButtonEnabled(True)
         self.filter_edit.textChanged.connect(lambda *_: self.filter_timer.start(200))
         row.addWidget(self.filter_edit, 1)
@@ -807,6 +808,7 @@ class ExplorerWidget(QtWidgets.QWidget):
             r.setObjectName("rel")
             header.addWidget(r)
         tag = library.tag_of(path)
+        block.ac_tag = tag.lower()          # searched by the filter
         if tag:
             t = QtWidgets.QLabel(tag)
             t.setObjectName("tag")
@@ -859,8 +861,14 @@ class ExplorerWidget(QtWidgets.QWidget):
     # --- Favourites and tags -------------------------------------------
     def toggle_favorite(self, path):
         library.set_favorite(path, not library.is_favorite(path))
-        if self.master and self.current_scan:
-            self._build(self.master, self.current_scan)    # thumbnails come from the cache
+        self._refresh_block(path)
+
+    def _refresh_block(self, folder):
+        """Rebuild only the block of `folder` (moved to its new place when it
+        becomes / stops being a favourite); the other blocks keep their
+        cards and thumbnails."""
+        if self.master and self.current_scan is not None and self.block_map:
+            self._update_folders(self.master, self.current_scan, [folder])
 
     def edit_tag(self, path):
         text, ok = QtWidgets.QInputDialog.getText(
@@ -874,8 +882,9 @@ class ExplorerWidget(QtWidgets.QWidget):
         card = self.cards.get(path)
         if card is not None:
             card.set_tag(tag)
-        elif self.master and self.current_scan:
-            self._build(self.master, self.current_scan)
+            self.apply_filter()
+        else:
+            self._refresh_block(path)
         return tag
 
     def _fill_favorites_menu(self):
@@ -932,13 +941,14 @@ class ExplorerWidget(QtWidgets.QWidget):
                 block.setVisible(True)
                 shown += len(cards)
                 continue
-            folder_match = txt in rel
+            # names and tags (#tag, emoji) of the folder and of the files
+            folder_match = txt in rel or txt in getattr(block, "ac_tag", "")
             n = 0
             for c in cards:
-                ok = folder_match or txt in c.name.lower()
+                ok = folder_match or txt in c.name.lower() or txt in c.tag.lower()
                 c.setVisible(ok)
                 n += ok
-            block.setVisible(n > 0)
+            block.setVisible(n > 0 or folder_match)
             shown += n
         self.tree_container.setUpdatesEnabled(True)
         if txt and self.current_scan:

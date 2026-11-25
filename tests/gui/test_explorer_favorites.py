@@ -101,3 +101,29 @@ def test_missing_favorite_is_reported(explorer_lib):
     w._remove_missing_favorites()
     from freecad.assembly_companion import library
     assert library.missing_favorites(root) == []
+
+
+def test_folder_tag_and_favorite_rebuild_one_block(explorer_lib):
+    w, root = explorer_lib
+    created = w.cards_created
+    w.set_tag(os.path.join(root, "B"), "📌")
+    assert w.cards_created - created == 1          # only the card of folder B
+    w.toggle_favorite(os.path.join(root, "C"))
+    assert w.cards_created - created == 2          # and the one of folder C
+    assert [b[2] for b in w.blocks][0] == "c"
+
+
+def test_tags_are_searchable(explorer_lib):
+    w, root = explorer_lib
+    w.set_tag(os.path.join(root, "A", "A1.FCStd"), "#urgent")
+    w.set_tag(os.path.join(root, "C"), "#moteur")
+    w.filter_edit.setText("#urg")
+    w.apply_filter()
+    shown = [p for p, c in w.cards.items() if not c.isHidden()]
+    assert shown == [os.path.join(root, "A", "A1.FCStd")]
+    w.filter_edit.setText("#mot")
+    w.apply_filter()
+    shown = [p for p, c in w.cards.items() if not c.isHidden()]
+    assert shown == [os.path.join(root, "C", "C1.FCStd")]
+    w.filter_edit.setText("")
+    w.apply_filter()

@@ -6,6 +6,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+- Explorer: tagging a folder or adding it to the favorites rebuilt the whole
+  view (slow on a large library): only that folder's block is rebuilt now.
+
+### Added
+- Explorer: tags are searchable (the filter matches the #tag or emoji of
+  files and folders).
+
 ## [0.2.0] - 2026-11-24
 
 ### Added
