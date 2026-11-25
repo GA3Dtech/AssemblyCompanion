@@ -9,13 +9,23 @@ set -euo pipefail
 AUTH=()
 if [ -n "${GITHUB_TOKEN:-}" ]; then AUTH=(-H "Authorization: Bearer $GITHUB_TOKEN"); fi
 if [ "$1" = "--resolve" ]; then
-    if [ "$2" = "weekly" ]; then
-        curl -fsSL "${AUTH[@]}" \
-            "https://api.github.com/repos/FreeCAD/FreeCAD/releases?per_page=30" \
-            | python3 -c "import json,sys; print([r['tag_name'] for r in json.load(sys.stdin) if r['tag_name'].startswith('weekly-')][0])"
-    else
-        echo "$2"
-    fi
+    # weekly: latest development build; a series such as 26.3: its stable
+    # release when published, else its newest release candidate; anything
+    # else: that exact tag
+    curl -fsSL "${AUTH[@]}" "https://api.github.com/repos/FreeCAD/FreeCAD/releases?per_page=60" \
+        | python3 -c "
+import json, re, sys
+want = sys.argv[1]
+tags = [(r['tag_name'], r['prerelease']) for r in json.load(sys.stdin)]
+if want == 'weekly':
+    print([t for t, _p in tags if t.startswith('weekly-')][0])
+elif re.fullmatch(r'\d+\.\d+', want):
+    serie = [(t, p) for t, p in tags if re.match(re.escape(want) + r'(\.\d+|rc\d+)?$', t)]
+    stable = [t for t, p in serie if not p]
+    print(stable[0] if stable else serie[0][0])
+else:
+    print(want)
+" "$2"
     exit 0
 fi
 TAG="$1"

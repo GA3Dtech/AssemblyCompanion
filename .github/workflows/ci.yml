@@ -36,15 +36,16 @@ jobs:
       - run: python -m pytest -q tests/unit
 
   freecad:
-    # 1.1.4: oldest supported version. 26.3rc2: newest 26.x until 26.3 is
-    # released. weekly: latest development build (future 27.1), allowed to
-    # fail (it warns early about upcoming FreeCAD changes).
+    # 1.1.4: oldest supported version. 26.3: resolved at each run to the
+    # 26.3 stable release as soon as it is published, its newest release
+    # candidate until then. weekly: latest development build (future 27.1),
+    # allowed to fail (it warns early about upcoming FreeCAD changes).
     runs-on: ubuntu-24.04
     continue-on-error: ${{ matrix.freecad == 'weekly' }}
     strategy:
       fail-fast: false
       matrix:
-        freecad: ["1.1.4", "26.3rc2", "weekly"]
+        freecad: ["1.1.4", "26.3", "weekly"]
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:

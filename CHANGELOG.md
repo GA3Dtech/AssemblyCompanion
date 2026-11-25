@@ -16,6 +16,12 @@ All notable changes to this project are documented here. The format follows
   resolve to the copy (passes on 1.1 and 26.3rc; prints the FreeCAD version
   and the stored paths when it fails). Advice: check this test before
   moving to a new FreeCAD version, and keep backups of multi-file projects.
+  Checked locally on weekly-2026.11.25 (27.1.0 dev): 8 failures, all from
+  this regression (stored link path absolute), the other 58 tests pass.
+
+### Changed
+- CI: the 26.3 job resolves at each run to the 26.3 stable release as soon
+  as it is published (its newest release candidate until then).
 
 ### Fixed
 - Freeze: a Body holding only a SubShapeBinder (as made by "New part from
