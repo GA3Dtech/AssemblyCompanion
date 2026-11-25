@@ -227,9 +227,24 @@ class AssemblyCompanionPreferencePage(object):
             tr("Folder of the thumbnails and folder scans of the explorer. Choose a folder "
                "that is not emptied by the system (temporary folders, company policies)."))
         f.addRow(tr("Cache folder:"), self.cache_dir.widget)
-        clear_favs = QtWidgets.QPushButton(tr("Clear the favorites and tags of the explorer"))
+        row = QtWidgets.QWidget()
+        h = QtWidgets.QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        save_favs = QtWidgets.QPushButton(tr("Save…"))
+        save_favs.setToolTip(tr("Save the favorites, tags and library folder of the explorer "
+                                "to a file (they are kept per FreeCAD version)."))
+        save_favs.clicked.connect(self._save_favorites)
+        load_favs = QtWidgets.QPushButton(tr("Restore…"))
+        load_favs.setToolTip(tr("Restore favorites and tags from a saved file, merged with "
+                                "the current ones."))
+        load_favs.clicked.connect(self._load_favorites)
+        clear_favs = QtWidgets.QPushButton(tr("Clear"))
+        clear_favs.setToolTip(tr("Clear the favorites and tags of the explorer"))
         clear_favs.clicked.connect(self._clear_favorites)
-        f.addRow(clear_favs)
+        for b in (save_favs, load_favs, clear_favs):
+            h.addWidget(b)
+        h.addStretch(1)
+        f.addRow(tr("Favorites and tags:"), row)
         lay.addWidget(g)
 
         # --- new part from selection
@@ -323,6 +338,37 @@ class AssemblyCompanionPreferencePage(object):
         run()
         if box.clickedButton() is move:
             library.move_cache(old, target)
+
+    def _save_favorites(self):
+        from . import library
+        QtWidgets = _qt()
+        path, _f = QtWidgets.QFileDialog.getSaveFileName(
+            self.form, tr("Save favorites and tags"),
+            os.path.join(os.path.expanduser("~"), "assembly_companion_explorer.json"),
+            tr("JSON files (*.json)"))
+        if path:
+            n = library.export_explorer_data(path)
+            QtWidgets.QMessageBox.information(
+                self.form, tr("Explorer"), tr("{favorites} favorite(s) and {tags} tag(s) "
+                                              "saved.").format(**n))
+
+    def _load_favorites(self):
+        from . import library
+        QtWidgets = _qt()
+        path, _f = QtWidgets.QFileDialog.getOpenFileName(
+            self.form, tr("Restore favorites and tags"), os.path.expanduser("~"),
+            tr("JSON files (*.json)"))
+        if not path:
+            return
+        try:
+            n = library.import_explorer_data(path)
+        except Exception as exc:
+            QtWidgets.QMessageBox.warning(self.form, tr("Explorer"), str(exc))
+            return
+        QtWidgets.QMessageBox.information(
+            self.form, tr("Explorer"), tr("{favorites} favorite(s) added, {tags} tag(s) "
+                                          "restored.").format(**n))
+        self.master_dir.edit.setText(get("LocalMasterDir"))
 
     def _clear_favorites(self):
         from . import library

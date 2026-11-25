@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - Explorer: tags are searchable (the filter matches the #tag or emoji of
   files and folders).
+- Preferences: save / restore the favorites, tags and library folder of the
+  explorer to a JSON file (merged on restore). They live in the preferences
+  of one FreeCAD version, not in the thumbnail cache: emptying the cache
+  keeps them, a new FreeCAD version starts without them.
 
 ## [0.2.0] - 2026-11-24
 

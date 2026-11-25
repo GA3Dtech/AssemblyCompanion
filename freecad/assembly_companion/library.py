@@ -418,3 +418,44 @@ def set_tag(path, text):
 def clear_favorites_and_tags():
     _put_json("ExplorerFavorites", [])
     _put_json("ExplorerTags", {})
+
+
+def export_explorer_data(path):
+    """Save the favourites, the tags and the library folder to the JSON file
+    `path` (they live in the preferences of one FreeCAD version: a new
+    FreeCAD starts without them). Returns {"favorites": n, "tags": n}."""
+    from . import prefs
+    data = {"format": "assembly-companion-explorer", "version": 1,
+            "library": prefs.get("LocalMasterDir"), "favorites": favorites(), "tags": tags()}
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=1)
+    return {"favorites": len(data["favorites"]), "tags": len(data["tags"])}
+
+
+def import_explorer_data(path):
+    """Restore a file written by export_explorer_data, MERGED with what is
+    already there (favourites added, tags of the file win). The library
+    folder is restored only when none is set. Returns {"favorites": n
+    added, "tags": n restored}."""
+    from . import prefs
+    with open(path, encoding="utf-8") as fh:
+        data = json.load(fh)
+    if not isinstance(data, dict) or data.get("format") != "assembly-companion-explorer":
+        raise ValueError("not an Assembly Companion explorer file")
+    favs = favorites()
+    keys = set(norm(f) for f in favs)
+    added = 0
+    for f in data.get("favorites") or []:
+        if isinstance(f, str) and norm(f) not in keys:
+            favs.append(f)
+            keys.add(norm(f))
+            added += 1
+    _put_json("ExplorerFavorites", favs)
+    t = tags()
+    new_tags = dict((k, v) for k, v in (data.get("tags") or {}).items()
+                    if isinstance(k, str) and isinstance(v, str))
+    t.update(new_tags)
+    _put_json("ExplorerTags", t)
+    if not prefs.get("LocalMasterDir") and isinstance(data.get("library"), str):
+        prefs.put("LocalMasterDir", data["library"])
+    return {"favorites": added, "tags": len(new_tags)}

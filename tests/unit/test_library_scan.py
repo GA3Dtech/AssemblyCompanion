@@ -349,3 +349,21 @@ def test_corrupted_preferences_are_ignored(clean_prefs):
     prefs.put("ExplorerFavorites", "{not json")
     prefs.put("ExplorerTags", "[1, 2]")
     assert library.favorites() == [] and library.tags() == {}
+
+
+def test_save_and_restore_favorites_and_tags(tree, clean_prefs, tmp_path):
+    a, b = os.path.join(tree, "A"), os.path.join(tree, "B")
+    f = os.path.join(a, "a1.FCStd")
+    library.set_favorite(a, True)
+    library.set_tag(f, "#urgent")
+    path = str(tmp_path / "explorer.json")
+    assert library.export_explorer_data(path) == {"favorites": 1, "tags": 1}
+    library.clear_favorites_and_tags()
+    library.set_favorite(b, True)                       # kept: the restore merges
+    assert library.import_explorer_data(path) == {"favorites": 1, "tags": 1}
+    assert library.favorites() == [b, a] and library.tag_of(f) == "#urgent"
+    assert library.import_explorer_data(path)["favorites"] == 0     # no duplicate
+    bad = tmp_path / "bad.json"
+    bad.write_text('{"x": 1}')
+    with pytest.raises(ValueError):
+        library.import_explorer_data(str(bad))
