@@ -192,3 +192,11 @@ attachments deactivated: the new files stand alone. replace=True puts a
 Link to each new part in place of the body (joints kept), one undo step.
 -> {"bodies": [{"body", "file", "copied", "standalone", "external",
 "volume", "faces", "new_volume", "new_faces"}], "replaced": [...]}
+
+### `new_file(path, part=None, body=None)`
+
+Create and save the new part file `path` (never overwritten): an
+App::Part labelled `part` (None: no container) holding an empty
+PartDesign Body labelled `body` (None: no Body; at the root without a
+container). The document stays open.
+-> {"path", "document", "part", "body"}

@@ -31,7 +31,7 @@ The toolbar and the menu follow the workflow, one group per theme
 | Group | Commands |
 |---|---|
 | Library | Local parts explorer, Insert component (visual), Import STEP as part |
-| Build | New part from selection, Extract bodies, Update part binder, Duplicate components, Replace component, Selection sets |
+| Build | New file, New part from selection, Extract bodies, Update part binder, Duplicate components, Replace component, Selection sets |
 | Durable | Freeze parts, Relink to sources, Outdated frozen parts, Check frozen assembly, Delete part joints (menu: Repair) |
 | Large assemblies | Make lightweight, Restore full components, Open source file |
 | Reports | Bill of materials, Check collisions, Archive |
@@ -66,6 +66,7 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | **Update part binder** | Replaces the content of the SubShapeBinder of an open part (made with *New part from selection*) by the faces, edges or parts selected in the assembly, to add or remove context elements. *Shape for TechDraw* of the selection sets likewise updates its binder in place when run again. |
 | **Group fasteners with their body** | Moves the screws, nuts, inserts… of the Fasteners workbench into the Std_Part of the body they are attached to, creating a Std_Part around a body that has none. The Part becomes a complete component (inserted and frozen with its fasteners), and the fasteners stay in their holes when the Part is moved — at the document root they drift as soon as the Part is not at the origin. |
 | **New part from selection** | Creates a new part file named `PREFIX_001a_Description.FCStd` (working folder, free prefix, next free number proposed, revision, description) whose Body holds a SubShapeBinder of the selected faces, edges or parts — or of a selection set. By default the binder is an independent copy, so the new part can be inserted into the assembly, exactly in place, without making the files depend on each other; a linked binder that follows the assembly is also available. |
+| **New file** | Creates a new, empty part file named like the other parts of the project (`PREFIX_NNNr_Description.FCStd`, next free number proposed), by default with a Std_Part container holding an empty Body, both named after the description (names editable, container and Body optional): faster new files, consistent naming. |
 | **Extract bodies** | Copies each selected Body with its whole tree (sketches, features, datums, spreadsheets used by its expressions) into its own new file, named like the new parts (`PREFIX_NNNr_<body>.FCStd`): a clean file from a crowded tree. SubShapeBinders become independent and attachments to other objects are removed (placement kept), so the new file stands alone; what still points outside is reported. Optionally replaces the bodies in the assembly by the new parts, joints kept. |
 | **Replace component** | Points the selected component to an object of another file — the next revision of its source file (`AB_001a` → `AB_001b`) is proposed automatically, the object with the same internal name is preselected — keeping its place and joints. Frozen components are frozen again from the new file; other instances of the same part can be replaced in the same step. |
 | **Import STEP as part** | Imports a STEP file as one Std_Part: the import groups created by FreeCAD's STEP importer become Parts, so every element is visible in the assembly and can carry joints. Saved in a new FreeCAD file next to the assembly (recommended) or created in the assembly document, then inserted into the active assembly. Also from the explorer (STEP files are listed: click or right-click to insert). |
@@ -170,7 +171,7 @@ Every function is covered by the automatic tests (FreeCAD 1.1.4, 26.3 and the we
 | Freeze sub-assemblies and imported STEP groups, "one solid per component" mode | experimental |
 | Bill of materials by sub-assembly (hierarchical) | experimental |
 | Import STEP as part | experimental |
-| Extract bodies | experimental |
+| Extract bodies, new file | experimental |
 | Explorer favorites and tags, configurable cache folder | experimental |
 | QML panels (generic panels with widgets fallback) | experimental |
 

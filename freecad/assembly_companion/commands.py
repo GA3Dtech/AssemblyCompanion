@@ -164,6 +164,10 @@ def _insert_component():
     _module("explorer").show_insert_dock()
 
 
+def _new_file():
+    _module("new_file").new_file_command()
+
+
 def _extract_body():
     _module("extract").extract_command()
 
@@ -277,6 +281,12 @@ COMMANDS = {
         tr("Browse your parts folder with thumbnails and insert parts into the "
             "active assembly; source files do not need to be open."),
         needs_document=False),
+    "AssemblyCompanion_NewFile": _Command(
+        _new_file, "NewFile.svg", tr("New file"),
+        tr("Create a new part file named like the other parts of the project "
+           "(PREFIX_NNNr_Description, next free number), with a Std_Part container and an "
+           "empty Body named after the description."),
+        needs_document=False),
     "AssemblyCompanion_ExtractBody": _Command(
         _extract_body, "ExtractBody.svg", tr("Extract bodies"),
         tr("Copy each selected Body with its whole tree (sketches, features, datums, "
@@ -302,7 +312,8 @@ COMMANDS = {
 GROUPS = [
     ("Library", ["AssemblyCompanion_Explorer", "AssemblyCompanion_InsertComponent",
                  "AssemblyCompanion_ImportStep"]),
-    ("Build", ["AssemblyCompanion_NewPart", "AssemblyCompanion_ExtractBody",
+    ("Build", ["AssemblyCompanion_NewFile", "AssemblyCompanion_NewPart",
+               "AssemblyCompanion_ExtractBody",
                "AssemblyCompanion_UpdateBinder",
                "AssemblyCompanion_Duplicate", "AssemblyCompanion_Replace",
                "AssemblyCompanion_SelectionSets"]),

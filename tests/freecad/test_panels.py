@@ -70,3 +70,24 @@ def test_new_part_panel_creates_one_file_cancel_creates_none(project, tmp_path):
     finally:
         prefs.put("NewPartLastDir", saved[0])
         prefs.put("NewPartLastPrefix", saved[1])
+
+
+def test_new_file_with_and_without_container_and_body(tmp_path):
+    import FreeCAD as App
+    from freecad.assembly_companion import api, errors
+    r = api.new_file(str(tmp_path / "AB_001a_Bracket.FCStd"), part="Bracket", body="Bracket")
+    d = App.getDocument(r["document"])
+    part, body = d.getObject(r["part"]), d.getObject(r["body"])
+    assert part.TypeId == "App::Part" and part.Label == "Bracket"
+    assert body.isDerivedFrom("PartDesign::Body") and body.getParentGeoFeatureGroup() is part
+    assert os.path.isfile(r["path"])
+    App.closeDocument(d.Name)
+    r = api.new_file(str(tmp_path / "AB_002a.FCStd"), body="Solo")
+    d = App.getDocument(r["document"])
+    assert r["part"] is None and d.getObject(r["body"]).getParentGeoFeatureGroup() is None
+    App.closeDocument(d.Name)
+    r = api.new_file(str(tmp_path / "AB_003a.FCStd"))
+    assert r["part"] is None and r["body"] is None
+    App.closeDocument(r["document"])
+    with pytest.raises(errors.UnsupportedObjectError):
+        api.new_file(str(tmp_path / "AB_001a_Bracket.FCStd"))

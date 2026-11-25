@@ -16,6 +16,10 @@ All notable changes to this project are documented here. The format follows
   view (slow on a large library): only that folder's block is rebuilt now.
 
 ### Added
+- New file: a new, empty part file named like the new parts (prefix, next
+  free number, revision, description), by default with a Std_Part container
+  holding an empty Body named after the description (names editable,
+  container and Body optional). API `new_file`.
 - Explorer: tags are searchable (the filter matches the #tag or emoji of
   files and folders).
 - Preferences: save / restore the favorites, tags and library folder of the

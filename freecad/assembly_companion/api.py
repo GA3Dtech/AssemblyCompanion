@@ -58,7 +58,7 @@ __all__ = [
     "duplicate_components", "make_lightweight", "restore_full", "new_part_from_selection",
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
-    "scan_library", "list_library", "import_step", "extract_bodies",
+    "scan_library", "list_library", "import_step", "extract_bodies", "new_file",
     "AssemblyCompanionError",
 ]
 
@@ -543,6 +543,27 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  New file
+# ----------------------------------------------------------------------
+def new_file(path, part=None, body=None):
+    """Create and save the new part file `path` (never overwritten): an
+    App::Part labelled `part` (None: no container) holding an empty
+    PartDesign Body labelled `body` (None: no Body; at the root without a
+    container). The document stays open.
+    -> {"path", "document", "part", "body"}"""
+    from . import new_file as _nf
+    if os.path.exists(path):
+        raise UnsupportedObjectError(tr("“{file}” already exists.").format(
+            file=os.path.basename(path)), path=path)
+    if not os.path.isdir(os.path.dirname(os.path.abspath(path))):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(
+            path=os.path.dirname(path)), path=path)
+    doc, p, b = _nf.create_file(path, part, body)
+    return {"path": path, "document": doc.Name, "part": p.Name if p else None,
+            "body": b.Name if b else None}
 
 
 # ----------------------------------------------------------------------
