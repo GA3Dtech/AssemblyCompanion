@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Notes
+- FreeCAD regression upstream (FreeCAD/FreeCAD#34357, Blocker, milestone
+  27.1): since commit 24ea8589a FreeCAD saves links to other files with
+  absolute paths, so a copied or moved project points back to the original
+  files. It explains every failure of the weekly build in our CI, and it
+  was reported as backported to the 26.3 branch after RC2. New test
+  `test_link_resolution.py` checks that the links of a copied project
+  resolve to the copy (passes on 1.1 and 26.3rc; prints the FreeCAD version
+  and the stored paths when it fails). Advice: check this test before
+  moving to a new FreeCAD version, and keep backups of multi-file projects.
+
 ### Fixed
 - Freeze: a Body holding only a SubShapeBinder (as made by "New part from
   selection") became invisible once frozen: such a Body has no shape of its
