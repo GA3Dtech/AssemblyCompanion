@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Fixed
+- Freeze: a Body holding only a SubShapeBinder (as made by "New part from
+  selection") became invisible once frozen: such a Body has no shape of its
+  own; the frozen copy now holds what it shows (its visible members). In
+  "one block" mode such a part stops the freeze with a clear message
+  instead of being left out silently.
 - Explorer: tagging a folder or adding it to the favorites rebuilt the whole
   view (slow on a large library): only that folder's block is rebuilt now.
 

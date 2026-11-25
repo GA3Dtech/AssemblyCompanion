@@ -236,6 +236,7 @@
   "{name}: sub-assembly without its assembly": "{name}: Unterbaugruppe ohne ihre Baugruppe",
   "{name}: empty shape": "{name}: leere Form",
   "Freeze: {n} joint(s) of {name} not copied, its parts keep their placement: {joints}": "Einfrieren: {n} Verbindung(en) von {name} nicht kopiert, ihre Teile behalten ihre Platzierung: {joints}",
+  "{name}: {part} has no shape of its own (e.g. a Body holding only a binder): freeze it with its structure.": "{name}: {part} hat keine eigene Form (z. B. ein Körper, der nur einen Binder enthält): mit seiner Struktur einfrieren.",
   "Freeze: {name} is a sub-assembly of the Assembly workbench; it is frozen with its structure (one block is only possible for a Link).": "Einfrieren: {name} ist eine Unterbaugruppe des Assembly-Arbeitsbereichs; sie wird mit ihrer Struktur eingefroren (ein einzelner Block ist nur für einen Link möglich).",
   "Freeze: no joint on {names}.": "Einfrieren: keine Verbindung an {names}.",
   "Frozen copies used by no part (sub-group “Unused”, can be deleted): {names}": "Eingefrorene Kopien, die von keinem Teil verwendet werden (Untergruppe „Unbenutzt“, löschbar): {names}",

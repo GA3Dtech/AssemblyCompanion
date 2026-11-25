@@ -236,6 +236,7 @@
   "{name}: sub-assembly without its assembly": "{name} : sous-assemblage sans son assemblage",
   "{name}: empty shape": "{name} : forme vide",
   "Freeze: {n} joint(s) of {name} not copied, its parts keep their placement: {joints}": "Figer : {n} liaison(s) de {name} non copiée(s), ses pièces gardent leur placement : {joints}",
+  "{name}: {part} has no shape of its own (e.g. a Body holding only a binder): freeze it with its structure.": "{name} : {part} n'a pas de forme propre (par exemple un Corps qui ne contient qu'un binder) : figez-le avec sa structure.",
   "Freeze: {name} is a sub-assembly of the Assembly workbench; it is frozen with its structure (one block is only possible for a Link).": "Figer : {name} est un sous-assemblage de l'atelier Assembly ; il est figé avec sa structure (un bloc unique n'est possible que pour un Link).",
   "Freeze: no joint on {names}.": "Figer : aucune liaison sur {names}.",
   "Frozen copies used by no part (sub-group “Unused”, can be deleted): {names}": "Copies figées utilisées par aucune pièce (sous-groupe « Inutilisés », supprimables) : {names}",

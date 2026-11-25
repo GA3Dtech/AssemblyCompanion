@@ -445,6 +445,32 @@ def forme_propre(shape):
     return s
 
 
+def forme_source(src):
+    """Shape a frozen copy of `src` must hold. A Body whose Tip gives no
+    shape (e.g. a Body holding only a SubShapeBinder, as made by "New part
+    from selection") shows its visible members: their shapes are gathered,
+    in the Body's coordinates, with the Body's placement. Null when there
+    is nothing to show."""
+    sh = src.Shape
+    if not sh.isNull() or not src.isDerivedFrom('PartDesign::Body'):
+        return sh
+    formes = []
+    for m in src.Group:
+        try:
+            if not m.Visibility or m.isDerivedFrom('App::Origin'):
+                continue
+            f = Part.getShape(src, m.Name + '.', needSubElement=False, transform=False)
+        except Exception:
+            continue
+        if not f.isNull():
+            formes.append(f)
+    if not formes:
+        return sh
+    c = formes[0].copy() if len(formes) == 1 else Part.makeCompound(formes)
+    c.Placement = src.Placement.multiply(c.Placement)
+    return c
+
+
 def _creer_ou_rafraichir_copie(doc, src, parent=None):
     """Frozen copy of the solid `src`. Stand-alone copies are stored hidden in
     the Solides_figes group (the Link displays them); copies inside a frozen
@@ -459,7 +485,7 @@ def _creer_ou_rafraichir_copie(doc, src, parent=None):
             parent.addObject(copie)
     # Use the shape SAVED in the source file: no recompute, version independent.
     # The shape carries the placement of `src` (position inside its Part).
-    copie.Shape = forme_propre(src.Shape)
+    copie.Shape = forme_propre(forme_source(src))
     copie.Label = 'Fige_' + src.Label if parent is None else src.Label
     _proprietes_figeage(copie, src, doc)
     try:
@@ -593,7 +619,7 @@ def obstacles(src, profondeur=0):
                 out += obstacles(m, profondeur + 1)
         return out
     if src.isDerivedFrom('Part::Feature'):
-        return [] if _forme_ok(src) or src.isDerivedFrom('PartDesign::Body') else \
+        return [] if not forme_source(src).isNull() else \
             [tr("{name}: empty shape").format(name=src.Label)]
     return [tr("{name}: type {type} not supported").format(name=src.Label, type=src.TypeId)]
 
@@ -884,7 +910,11 @@ def _creer_ou_rafraichir_bloc(doc, src):
     for chemin, label, fichier in feuilles:
         sh = Part.getShape(src, '.'.join(chemin) + '.', needSubElement=False, transform=False)
         if sh.isNull():
-            continue
+            # never a silent loss (a Body holding only a binder has no shape
+            # of its own): the structure mode freezes such parts
+            raise RuntimeError(tr("{name}: {part} has no shape of its own (e.g. a Body holding "
+                                  "only a binder): freeze it with its structure.").format(
+                name=src.Label, part=label))
         formes.append(sh)
         f, e, v = _compter(sh)
         carte.append("%s|%d|%d|%d" % ('.'.join(chemin), f, e, v))

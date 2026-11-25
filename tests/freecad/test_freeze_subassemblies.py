@@ -349,3 +349,40 @@ def test_chain_of_links_keeps_its_shape(tmp_path):
     m.recompute()
     assert signature(m) == before
     check_frozen_and_alone(m, folder, "main.FCStd", before)
+
+
+# ----------------------------------------------------------------------
+#  A Body holding only a SubShapeBinder (made by "New part from
+#  selection"): its Tip gives no shape, the frozen copy must still show it
+# ----------------------------------------------------------------------
+def test_body_with_only_a_binder_stays_visible(tmp_path):
+    import Part
+    import build_fixtures as bf
+    api = _api()
+    folder = str(tmp_path)
+    src = App.newDocument("binder_part")
+    body = src.addObject("PartDesign::Body", "Body")
+    body.Placement = App.Placement(App.Vector(50, 0, 0), App.Rotation())
+    binder = body.newObject("PartDesign::SubShapeBinder", "Binder")
+    binder.BindMode = "Detached"
+    binder.Shape = Part.makeBox(10, 20, 5)
+    src.recompute()
+    src.saveAs(os.path.join(folder, "part.FCStd"))
+    assert body.Shape.isNull()
+    m = App.newDocument("binder_main")
+    m.saveAs(os.path.join(folder, "main.FCStd"))
+    asm = bf.new_assembly(m)
+    bf.link(m, asm, body, "Part", App.Placement(App.Vector(0, 30, 0), App.Rotation()))
+    m.recompute()
+    m.save()
+    # The Link shows the binder at its own placement: centre (5, 40, 2.5)
+    expected = [(1000.0, 5.0, 40.0, 2.5)]
+    res = api.freeze_parts(m)
+    assert res["frozen"] == ["Part"]
+    m.recompute()
+    assert signature(m) == expected
+    m.save()
+    close_all()
+    os.remove(os.path.join(folder, "part.FCStd"))
+    m = open_doc(os.path.join(folder, "main.FCStd"))
+    assert signature(m) == expected
