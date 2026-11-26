@@ -13,6 +13,12 @@ All notable changes to this project are documented here. The format follows
   changed, which objects use them; save them or ignore their changes. API
   `analyze_dependencies`, `save_dependencies`, `ignore_dependency_changes`.
 
+- Explorer: STEP, mesh (STL, 3MF) and PDF files can be shown besides the
+  FreeCAD files ("Also show" boxes, also on the preference page). Meshes get
+  a drawn preview (3MF: the slicer's thumbnail when present), PDF the first
+  page when the poppler tool pdftoppm is installed. Meshes open in FreeCAD,
+  PDF in the system viewer; only FreeCAD and STEP files are inserted.
+
 ### Fixed
 - Open source file: a document partially loaded for the assembly was never
   loaded completely (wrong attribute name), so it could not be edited.
