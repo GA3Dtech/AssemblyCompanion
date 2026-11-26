@@ -219,3 +219,18 @@ Save the dependencies `names` of `doc` (None = every modified one).
 Clear the modified flag of the dependencies `names` of `doc` (None =
 every modified one), so FreeCAD stops asking to save them; their changes
 in memory are not saved (GUI only). -> [document names]
+
+### `files_without_thumbnail(folder, recursive=True, size=256)`
+
+FreeCAD files of `folder` whose stored thumbnail is missing or
+narrower than `size` pixels (read from the files, nothing opened).
+-> [paths]
+
+### `generate_thumbnails(folder, recursive=True, only_missing=True, copy=True)`
+
+Open, fit (isometric) and save the FreeCAD files of `folder` so that
+each stores a 256 px thumbnail (GUI only: it is a capture of the view).
+copy=True (default) works on a copy of the folder made next to it:
+saving rewrites the files with this FreeCAD version. Files already open
+are skipped. -> {"folder", "done", "skipped", "failed": [{"file",
+"error"}]}

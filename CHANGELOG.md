@@ -19,6 +19,12 @@ All notable changes to this project are documented here. The format follows
   page when the poppler tool pdftoppm is installed. Meshes open in FreeCAD,
   PDF in the system viewer; only FreeCAD and STEP files are inserted.
 
+- Generate thumbnails (Accessories): FreeCAD files of a folder without a
+  256 px thumbnail are opened, fitted and saved, on a copy of the folder by
+  default (in place only with an explicit "I have a backup"). At first use,
+  the workbench offers to turn on FreeCAD's 256 px thumbnails when they are
+  off. API `files_without_thumbnail`, `generate_thumbnails`.
+
 ### Fixed
 - Open source file: a document partially loaded for the assembly was never
   loaded completely (wrong attribute name), so it could not be edited.

@@ -473,6 +473,8 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.save_timer.setSingleShot(True)
         self.save_timer.timeout.connect(self._flush_saved)
         _explorers.add(self)
+        from . import thumbs
+        QtCore.QTimer.singleShot(800, lambda: thumbs.startup_check(self))
         install_save_observer()
         saved = get_saved_dir()
         if saved:

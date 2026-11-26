@@ -164,6 +164,10 @@ def _insert_component():
     _module("explorer").show_insert_dock()
 
 
+def _thumbnails():
+    _module("thumbs").generate_command()
+
+
 def _check_deps():
     _module("deps").check_command()
 
@@ -290,6 +294,12 @@ COMMANDS = {
         tr("List the files the document depends on and why FreeCAD asks to save the "
            "dependent files: which are modified, hidden or partially loaded, what changed, "
            "which objects use them. Save them or ignore their changes.")),
+    "AssemblyCompanion_Thumbnails": _Command(
+        _thumbnails, "Thumbnails.svg", tr("Generate thumbnails"),
+        tr("Give the FreeCAD files of a folder a 256 px thumbnail (opened, fitted, saved), "
+           "for the explorer. Works on a copy of the folder by default: saving rewrites the "
+           "files with this FreeCAD version."),
+        needs_document=False),
     "AssemblyCompanion_NewFile": _Command(
         _new_file, "NewFile.svg", tr("New file"),
         tr("Create a new part file named like the other parts of the project "
@@ -333,7 +343,7 @@ GROUPS = [
                           "AssemblyCompanion_OpenSource"]),
     ("Reports", ["AssemblyCompanion_Bom", "AssemblyCompanion_Collisions",
                  "AssemblyCompanion_Archive"]),
-    ("Accessories", ["AssemblyCompanion_CheckDependencies"]),
+    ("Accessories", ["AssemblyCompanion_CheckDependencies", "AssemblyCompanion_Thumbnails"]),
     ("Finishing", ["AssemblyCompanion_Fasteners", "AssemblyCompanion_Align",
                    "AssemblyCompanion_Reactivate"]),
 ]

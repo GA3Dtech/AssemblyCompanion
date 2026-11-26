@@ -58,7 +58,12 @@ class AssemblyCompanionWorkbench(Gui.Workbench):
         self.appendMenu("Assembly Companion", commands.MENU)
 
     def Activated(self):
-        pass
+        try:
+            from PySide import QtCore
+        except ImportError:
+            from PySide6 import QtCore
+        from . import thumbs
+        QtCore.QTimer.singleShot(1500, lambda: thumbs.startup_check(Gui.getMainWindow()))
 
     def Deactivated(self):
         pass

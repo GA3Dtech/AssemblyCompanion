@@ -45,6 +45,7 @@ DEFAULTS = {
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
     "ExplorerFavorites": "[]",      # JSON list of favourite folders (pinned on top)
     "ExplorerTags": "{}",           # JSON {path: emoji or #tag} shown on thumbnails
+    "ThumbnailCheckDone": False,    # startup question about FreeCAD's thumbnails asked (not on the page)
     "ExplorerShowStep": True,       # explorer: file types shown besides FreeCAD files
     "ExplorerShowMesh": False,      # STL, 3MF
     "ExplorerShowPdf": False,       # PDF drawings
