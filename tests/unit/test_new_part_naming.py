@@ -44,7 +44,8 @@ def test_folder_prefix(tmp_path):
     for n in ("AB_001a_x.FCStd", "AB_002a_y.FCStd", "CD_001a_z.FCStd", "AB_003a.step"):
         (work / n).touch()
     assert new_part.folder_prefix(str(work)) == "AB"            # files win, most used
-    plain = tmp_path / "parts"
-    plain.mkdir()
-    assert new_part.folder_prefix(str(plain)) == ""
+    for name in ("parts", "new_parts"):
+        plain = tmp_path / name
+        plain.mkdir()
+        assert new_part.folder_prefix(str(plain)) == ""
     assert new_part.folder_prefix(str(tmp_path / "missing")) == ""

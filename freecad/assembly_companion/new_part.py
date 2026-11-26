@@ -104,7 +104,7 @@ _PREFIXED = re.compile(r"^([A-Za-z]+)_\d+")
 
 def folder_prefix(folder):
     """Letter prefix of a working folder: the one its part files use
-    (AB_001a_..., the most frequent), else the leading letters of the folder
+    (AB_001a_..., the most frequent), else the leading capitals of the folder
     name (GI_MiniEtau -> GI), else "". The prefix belongs to the folder:
     it never changes from one new file to the next."""
     counts = {}
@@ -117,7 +117,8 @@ def folder_prefix(folder):
         pass
     if counts:
         return max(sorted(counts), key=lambda k: counts[k])
-    m = re.match(r"^([A-Za-z]{1,6})_", os.path.basename(os.path.normpath(folder or "")))
+    # capitals only: a folder "new_parts" has no prefix
+    m = re.match(r"^([A-Z]{1,4})_", os.path.basename(os.path.normpath(folder or "")))
     return m.group(1) if m else ""
 
 
