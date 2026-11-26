@@ -59,6 +59,8 @@ __all__ = [
     "selection_sets", "create_selection_set", "selection_set_members",
     "combine_selection_sets", "group_fasteners", "reactivate_assembly",
     "scan_library", "list_library", "import_step", "extract_bodies", "new_file",
+    "analyze_dependencies", "save_dependencies", "ignore_dependency_changes",
+    "files_without_thumbnail", "generate_thumbnails",
     "AssemblyCompanionError",
 ]
 
@@ -543,6 +545,79 @@ def group_fasteners(doc, names=None):
     moved, created, skipped = fasteners.organize(doc, _objs(doc, names))
     return {"moved": [o.Name for o in moved], "parts_created": [p.Name for p in created],
             "skipped": [o.Name for o in skipped]}
+
+
+# ----------------------------------------------------------------------
+#  Thumbnails
+# ----------------------------------------------------------------------
+def files_without_thumbnail(folder, recursive=True, size=256):
+    """FreeCAD files of `folder` whose stored thumbnail is missing or
+    narrower than `size` pixels (read from the files, nothing opened).
+    -> [paths]"""
+    from . import thumbs
+    if not os.path.isdir(folder or ""):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(path=folder or ""),
+                                  path=folder or "")
+    return thumbs.missing(folder, recursive, size)
+
+
+def generate_thumbnails(folder, recursive=True, only_missing=True, copy=True):
+    """Open, fit (isometric) and save the FreeCAD files of `folder` so that
+    each stores a 256 px thumbnail (GUI only: it is a capture of the view).
+    copy=True (default) works on a copy of the folder made next to it:
+    saving rewrites the files with this FreeCAD version. Files already open
+    are skipped. -> {"folder", "done", "skipped", "failed": [{"file",
+    "error"}]}"""
+    from . import thumbs
+    if not App.GuiUp:
+        raise GuiRequiredError(tr("The operation needs the FreeCAD interface."))
+    if not os.path.isdir(folder or ""):
+        raise SourceNotFoundError(tr("Folder not found: {path}").format(path=folder or ""),
+                                  path=folder or "")
+    work = thumbs.copy_folder(folder) if copy else folder
+    paths = thumbs.missing(work, recursive) if only_missing else \
+        thumbs.fcstd_files(work, recursive)
+    r = thumbs.generate(paths)
+    r["folder"] = work
+    return r
+
+
+# ----------------------------------------------------------------------
+#  Dependencies
+# ----------------------------------------------------------------------
+def analyze_dependencies(doc):
+    """Documents `doc` depends on (directly or through another file) and why
+    FreeCAD may ask to save them with it. -> [{"document", "label", "file",
+    "open_in_tab", "partial", "modified", "touched": [labels], "used_by":
+    [object names of doc], "via": label of the linking document}] (modified
+    first)"""
+    from . import deps
+    return deps.dependencies(_doc(doc))
+
+
+def save_dependencies(doc, names=None):
+    """Save the dependencies `names` of `doc` (None = every modified one).
+    -> [saved document names]"""
+    from . import deps
+    rows = deps.dependencies(_doc(doc))
+    known = set(r["document"] for r in rows)
+    names = [r["document"] for r in rows if r["modified"]] if names is None else \
+        [n for n in names if n in known]
+    return deps.save_documents(names)
+
+
+def ignore_dependency_changes(doc, names=None):
+    """Clear the modified flag of the dependencies `names` of `doc` (None =
+    every modified one), so FreeCAD stops asking to save them; their changes
+    in memory are not saved (GUI only). -> [document names]"""
+    from . import deps
+    if not App.GuiUp:
+        raise GuiRequiredError(tr("The operation needs the FreeCAD interface."))
+    rows = deps.dependencies(_doc(doc))
+    known = set(r["document"] for r in rows)
+    names = [r["document"] for r in rows if r["modified"]] if names is None else \
+        [n for n in names if n in known]
+    return deps.ignore_changes(names)
 
 
 # ----------------------------------------------------------------------

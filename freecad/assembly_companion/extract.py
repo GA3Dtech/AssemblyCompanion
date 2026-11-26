@@ -240,8 +240,7 @@ class ExtractPanel(panel_model.PanelModel):
         folder = prefs.get("NewPartLastDir") or prefs.get("NewPartDir") or \
             (os.path.dirname(doc.FileName) if doc.FileName else os.path.expanduser("~"))
         self.add(P("folder", tr("Working folder:"), "path", folder, mode="dir"))
-        self.add(P("prefix", tr("Prefix:"), "text",
-                   prefs.get("NewPartLastPrefix") or prefs.get("NewPartPrefix")))
+        self.add(P("prefix", tr("Prefix:"), "text", new_part.default_prefix(folder)))
         self.add(P("revision", tr("Revision:"), "text", prefs.get("NewPartRevision")))
         self.add(P("files", tr("Files:"), "note"))
         self.add(P("replace", tr("Replace the bodies in the assembly by the new parts"), "bool",
@@ -255,6 +254,10 @@ class ExtractPanel(panel_model.PanelModel):
             "NewPartDigits"), v["revision"])
 
     def changed(self, name):
+        if name == "folder":
+            fp = new_part.folder_prefix(self.values["folder"].strip())
+            if fp:
+                self.values["prefix"] = fp
         if os.path.isdir(self.values["folder"].strip()):
             self.values["files"] = "\n".join(os.path.basename(p) for p in self.paths())
         else:

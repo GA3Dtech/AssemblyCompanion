@@ -690,9 +690,36 @@ def restore_command(doc=None):
     return done
 
 
+def _show_target(d, obj_name):
+    """Select the source object in its document and fit the view to it,
+    without changing the document (hiding the other objects would mark it
+    modified, and FreeCAD would then ask to save it with the assembly)."""
+    import FreeCADGui as Gui
+    o = d.getObject(obj_name) if obj_name else None
+    if o is None:
+        return None
+    try:
+        Gui.Selection.clearSelection()
+        Gui.Selection.addSelection(d.Name, o.Name)
+        Gui.SendMsgToActiveView("ViewSelection")
+    except Exception:
+        pass
+    return o
+
+
+def _other_parts(d, obj_name):
+    """Other bodies / parts of the source file (a file holding every part
+    of the assembly is loaded whole when one of them is opened)."""
+    return [o.Label for o in d.Objects if o.Name != obj_name and
+            (o.isDerivedFrom("PartDesign::Body") or o.TypeId == "App::Part") and
+            o.getParentGeoFeatureGroup() is None]
+
+
 def open_source_command(doc=None):
     """Open the real file of the selected component (lightweight, frozen or
-    linked) as a normal document, to work on it."""
+    linked) to work on it: only that file is loaded (fully, to be editable),
+    the source part is selected and the view fitted to it. A file that holds
+    several parts is reported (Extract bodies gives one file per part)."""
     import FreeCADGui as Gui
     from . import docs
     doc = doc or docs.working_document()
@@ -702,26 +729,36 @@ def open_source_command(doc=None):
         raise RuntimeError(tr("Select a component of the assembly."))
     t = links[0].LinkedObject
     if is_lightweight(t):
-        path = source_path(t, doc)
+        path, obj_name = source_path(t, doc), t.LWObject
     else:
-        path = _source(t, doc)[0]
+        path, obj_name, _label = _source(t, doc)
     if not path or not os.path.isfile(path):
         raise RuntimeError(tr("Source file not found: {file}").format(file=path or "?"))
-    for d in App.listDocuments().values():
-        if docs.same_file(d.FileName, path):
-            # Already loaded for the assembly, hidden and maybe partially:
-            # never close it (its linked parts would vanish), give it a view
-            # and load what is missing
-            try:
-                if d.isPartial():
-                    d.restore()
-            except Exception:
-                pass
-            App.setActiveDocument(d.Name)
-            Gui.setActiveDocument(d.Name)
-            if not Gui.getDocument(d.Name).mdiViewsOfType("Gui::View3DInventor"):
-                Gui.runCommand("Std_ViewCreate", 0)
-            return d
-    d = App.openDocument(path)
-    App.setActiveDocument(d.Name)
+    d = None
+    for x in App.listDocuments().values():
+        if docs.same_file(x.FileName, path):
+            d = x
+    if d is not None:
+        # Already loaded for the assembly, hidden and maybe partially: never
+        # close it (its linked parts would vanish); load what is missing of
+        # THIS file only (a partial document cannot be edited) and give it a view
+        try:
+            if getattr(d, "Partial", False):
+                d.restore()
+        except Exception:
+            pass
+        App.setActiveDocument(d.Name)
+        Gui.setActiveDocument(d.Name)
+        if not Gui.getDocument(d.Name).mdiViewsOfType("Gui::View3DInventor"):
+            Gui.runCommand("Std_ViewCreate", 0)
+    else:
+        d = App.openDocument(path)
+        App.setActiveDocument(d.Name)
+    _show_target(d, obj_name)
+    others = _other_parts(d, obj_name)
+    if others:
+        App.Console.PrintMessage(tr("Open source: {file} also holds {n} other part(s) ({names}): "
+                                    "the whole file is loaded. “Extract bodies” gives one file "
+                                    "per part.").format(file=os.path.basename(path), n=len(others),
+                                                       names=", ".join(others[:6])) + "\n")
     return d

@@ -578,10 +578,14 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         self.refresh()
 
     # ---------- user interface ----------
-    def _btn(self, text, tip, slot):
+    def _btn(self, text, tip, slot, icon_name=None):
         b = QtWidgets.QPushButton(text)
         b.setToolTip(tip)
         b.clicked.connect(slot)
+        if icon_name:
+            from . import icon
+            b.setIcon(QtGui.QIcon(icon(icon_name)))
+            b.setIconSize(QtCore.QSize(20, 20))
         return b
 
     def _build_ui(self):
@@ -633,13 +637,13 @@ class SelectionSetsPanel(QtWidgets.QWidget):
         l4.addWidget(self._btn(tr("New part…"),
                                tr("New part file whose Body holds a SubShapeBinder of the "
                                   "current selection (faces, edges, parts), or of the set "
-                                  "when nothing is selected"), self.new_part), 0, 0)
+                                  "when nothing is selected"), self.new_part, "NewPart.svg"), 0, 0)
         l4.addWidget(self._btn(tr("Shape for TechDraw"),
                                tr("SubShapeBinder of the set members only (chosen faces, "
                                   "edges, parts) at the root of the document: make the "
                                   "TechDraw view of it to draw only what matters. Run it "
                                   "again after changing the set to update the same shape"),
-                               self.techdraw_shape), 0, 1)
+                               self.techdraw_shape, "TechDrawShape.svg"), 0, 1)
         lay.addWidget(g4)
 
         g3 = QtWidgets.QGroupBox(tr("Combine"))

@@ -42,9 +42,9 @@ except ImportError:                       # plain Python (tools, tests)
 # ----------------------------------------------------------------------
 #  Paths
 # ----------------------------------------------------------------------
-# Files listed by the explorer: FreeCAD files, and STEP files (inserted
-# through "Import STEP as part")
-LIBRARY_EXTENSIONS = (".fcstd", ".step", ".stp")
+# Files listed by the explorer: FreeCAD files, STEP files (inserted through
+# "Import STEP as part"), meshes and PDF drawings (shown when chosen)
+LIBRARY_EXTENSIONS = (".fcstd", ".step", ".stp", ".stl", ".3mf", ".pdf")
 
 
 def norm(path):

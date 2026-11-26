@@ -41,7 +41,6 @@ User-facing texts are in English, translated through i18n.tr().
 import os
 import queue
 import weakref
-import zipfile
 import collections
 import concurrent.futures
 
@@ -54,6 +53,7 @@ except ImportError:                       # outside FreeCAD (tests)
 
 from . import docs
 from . import library
+from . import previews
 from . import prefs
 from .i18n import tr
 
@@ -143,17 +143,26 @@ def _is_step(path):
     return os.path.splitext(path)[1].lower() in (".step", ".stp")
 
 
-def extract_fcstd_thumbnail(path):
-    """PNG bytes of the thumbnail embedded in a .FCStd (ZIP archive), or None."""
-    try:
-        with zipfile.ZipFile(path) as z:
-            names = set(z.namelist())
-            for cand in ("thumbnails/Thumbnail.png", "Thumbnail.png"):
-                if cand in names:
-                    return z.read(cand)
-    except Exception:
-        pass
-    return None
+extract_fcstd_thumbnail = previews.fcstd_thumbnail
+
+# file kind -> preference that shows it (FreeCAD files are always shown)
+KIND_PREFS = {"step": "ExplorerShowStep", "mesh": "ExplorerShowMesh", "pdf": "ExplorerShowPdf"}
+NO_PREVIEW = {"step": "STEP", "mesh": "STL / 3MF", "pdf": "PDF"}
+
+
+def shown_kinds():
+    return set(["freecad"] + [k for k, key in KIND_PREFS.items() if prefs.get(key)])
+
+
+def visible_scan(scan, kinds=None):
+    """`scan` with only the files of the kinds shown, empty folders dropped."""
+    kinds = shown_kinds() if kinds is None else kinds
+    out = {}
+    for d, files in (scan or {}).items():
+        keep = [f for f in files if previews.kind(f[0]) in kinds]
+        if keep:
+            out[d] = keep
+    return out
 
 
 def load_thumbnail(cdir, path, mtime, size):
@@ -168,9 +177,11 @@ def load_thumbnail(cdir, path, mtime, size):
         return None if img.isNull() else img
     if os.path.exists(none):
         return None
-    data = None if _is_step(path) else extract_fcstd_thumbnail(path)
-    img = QtGui.QImage()
-    if not data or not img.loadFromData(data) or img.isNull():
+    try:
+        img = previews.preview_image(path, THUMB_CACHE)
+    except Exception:
+        img = None
+    if img is None or img.isNull():
         try:
             open(none, "w").close()
         except OSError:
@@ -376,7 +387,9 @@ class FileCard(QtWidgets.QFrame):
         super().__init__()
         self.path, self.mtime, self.size = path, mtime, size
         self.explorer = explorer
-        self.name = os.path.splitext(os.path.basename(path))[0]
+        base = os.path.basename(path)
+        # FreeCAD files by name; other kinds keep their extension (bracket.stl)
+        self.name = os.path.splitext(base)[0] if previews.kind(path) == "freecad" else base
         self.setObjectName("card")
         self.setFixedSize(CARD_W, CARD_H)
         self.setCursor(QtCore.Qt.PointingHandCursor)
@@ -413,7 +426,7 @@ class FileCard(QtWidgets.QFrame):
 
     def set_image(self, img):
         if img is None:
-            self.thumb.setText("STEP" if _is_step(self.path) else tr("(no\nthumbnail)"))
+            self.thumb.setText(NO_PREVIEW.get(previews.kind(self.path), tr("(no\nthumbnail)")))
             return
         pix = QtGui.QPixmap.fromImage(img).scaled(
             THUMB, THUMB, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
@@ -460,6 +473,8 @@ class ExplorerWidget(QtWidgets.QWidget):
         self.save_timer.setSingleShot(True)
         self.save_timer.timeout.connect(self._flush_saved)
         _explorers.add(self)
+        from . import thumbs
+        QtCore.QTimer.singleShot(800, lambda: thumbs.startup_check(self))
         install_save_observer()
         saved = get_saved_dir()
         if saved:
@@ -521,7 +536,19 @@ class ExplorerWidget(QtWidgets.QWidget):
                                         "(Assembly Companion)"))
         self.freeze_check.setChecked(get_freeze_on_insert())
         self.freeze_check.toggled.connect(set_freeze_on_insert)
-        main.addWidget(self.freeze_check)
+        row = QtWidgets.QHBoxLayout()
+        row.addWidget(self.freeze_check)
+        row.addStretch(1)
+        row.addWidget(QtWidgets.QLabel(tr("Also show:")))
+        self.kind_checks = {}
+        for kind_, label in (("step", "STEP"), ("mesh", "STL / 3MF"), ("pdf", "PDF")):
+            cb = QtWidgets.QCheckBox(label)
+            cb.setToolTip(tr("Show these files besides the FreeCAD files"))
+            cb.setChecked(bool(prefs.get(KIND_PREFS[kind_])))
+            cb.toggled.connect(lambda on, k=kind_: self._show_kind(k, on))
+            row.addWidget(cb)
+            self.kind_checks[kind_] = cb
+        main.addLayout(row)
 
         self.status = QtWidgets.QLabel("")
         self.status.setStyleSheet("color: #6b7280; font-size: 12px;")
@@ -672,6 +699,7 @@ class ExplorerWidget(QtWidgets.QWidget):
             self.current_scan = scan
             return
         self.current_scan = scan
+        scan = visible_scan(scan)
         scroll_pos = self.scroll.verticalScrollBar().value()
         self._new_container()
         self.cards, self.block_map = {}, {}
@@ -695,6 +723,7 @@ class ExplorerWidget(QtWidgets.QWidget):
         `changed` folders (and parents that appear / disappear). Other blocks
         keep their cards and thumbnails; scroll position and filter stay."""
         self.current_scan = scan
+        scan = visible_scan(scan)
         wanted = self._view_order(master, scan)
         wanted_keys = {library.norm(d) for d in wanted}
         changed_keys = {library.norm(d) for d in changed}
@@ -730,7 +759,7 @@ class ExplorerWidget(QtWidgets.QWidget):
     def _sync_blocks(self, master, scan):
         """self.blocks (used by the filter) in display order."""
         self.blocks = [self.block_map[library.norm(d)]
-                       for d in self._view_order(master, scan)
+                       for d in self._view_order(master, visible_scan(scan))
                        if library.norm(d) in self.block_map]
 
     def _load_thumbnails(self, cards):
@@ -858,6 +887,11 @@ class ExplorerWidget(QtWidgets.QWidget):
         menu.addAction(tr("Open in the file manager"), lambda: self.open_in_os(path))
         menu.exec(global_pos) if hasattr(menu, "exec") else menu.exec_(global_pos)
 
+    def _show_kind(self, kind_, on):
+        prefs.put(KIND_PREFS[kind_], bool(on))
+        if self.master and self.current_scan is not None:
+            self._build(self.master, self.current_scan)     # thumbnails come from the cache
+
     # --- Favourites and tags -------------------------------------------
     def toggle_favorite(self, path):
         library.set_favorite(path, not library.is_favorite(path))
@@ -958,14 +992,16 @@ class ExplorerWidget(QtWidgets.QWidget):
 
     # --- Actions -------------------------------------------------------
     def main_action(self, path):
-        if self.mode == "insert":
+        if self.mode == "insert" and previews.kind(path) in ("freecad", "step"):
             self.insert_file(path)
         else:
             self.open_file(path)
 
     def card_menu(self, card, event):
         menu = QtWidgets.QMenu(self)
-        menu.addAction(tr("Insert into the active assembly"), lambda: self.insert_file(card.path))
+        if previews.kind(card.path) in ("freecad", "step"):
+            menu.addAction(tr("Insert into the active assembly"),
+                           lambda: self.insert_file(card.path))
         menu.addAction(tr("Open"), lambda: self.open_file(card.path))
         menu.addAction(tr("Open folder"), lambda: self.open_in_os(os.path.dirname(card.path)))
         menu.addSeparator()
@@ -1000,9 +1036,17 @@ class ExplorerWidget(QtWidgets.QWidget):
 
     def open_file(self, path):
         try:
-            if _is_step(path):
+            k = previews.kind(path)
+            if k == "step":
                 import ImportGui
                 ImportGui.open(path)
+                return
+            if k == "mesh":
+                import Mesh
+                Mesh.open(path)
+                return
+            if k == "pdf":
+                docs.open_in_file_manager(path)     # the system PDF viewer
                 return
             App.openDocument(path)
         except Exception as e:

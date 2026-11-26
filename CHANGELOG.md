@@ -6,6 +6,43 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Check dependencies (Accessories): why FreeCAD asks "The file contains
+  external dependencies. Do you want to save the dependent files, too?" -
+  the files the document depends on, modified / hidden / partial, what
+  changed, which objects use them; save them or ignore their changes. API
+  `analyze_dependencies`, `save_dependencies`, `ignore_dependency_changes`.
+
+- Explorer: STEP, mesh (STL, 3MF) and PDF files can be shown besides the
+  FreeCAD files ("Also show" boxes, also on the preference page). Meshes get
+  a drawn preview (3MF: the slicer's thumbnail when present), PDF the first
+  page when the poppler tool pdftoppm is installed. Meshes open in FreeCAD,
+  PDF in the system viewer; only FreeCAD and STEP files are inserted.
+
+- Generate thumbnails (Accessories): FreeCAD files of a folder without a
+  256 px thumbnail are opened, fitted and saved, on a copy of the folder by
+  default (in place only with an explicit "I have a backup"). At first use,
+  the workbench offers to turn on FreeCAD's 256 px thumbnails when they are
+  off. API `files_without_thumbnail`, `generate_thumbnails`.
+
+### Fixed
+- Open source file: a document partially loaded for the assembly was never
+  loaded completely (wrong attribute name), so it could not be edited.
+
+### Changed
+- Icons: "Insert component (visual)" shows the explorer folder with a part
+  coming out of it; "Open source file" (a page with an open arrow) no longer
+  looks like "Archive"; icons on the "New part…" and "Shape for TechDraw"
+  buttons of the selection sets.
+- New part / new file / extract: the prefix is the one of the working
+  folder (from its part files, else from its name, e.g. GI_MiniEtau -> GI)
+  and changes only with the folder.
+- New part from selection: the view of the new part is fitted (as V, F).
+- Open source file: only the source file is loaded; the source part is
+  selected and the view fitted to it (nothing is hidden: that would mark the
+  file modified). When the file holds other parts too, a message says so
+  and points to "Extract bodies".
+
 ### Notes
 - FreeCAD regression upstream (FreeCAD/FreeCAD#34357, Blocker, milestone
   27.1): since commit 24ea8589a FreeCAD saves links to other files with

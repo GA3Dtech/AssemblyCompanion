@@ -45,6 +45,10 @@ DEFAULTS = {
     "FreezeMode": "structure",      # containers / sub-assemblies: "structure" or one "block"
     "ExplorerFavorites": "[]",      # JSON list of favourite folders (pinned on top)
     "ExplorerTags": "{}",           # JSON {path: emoji or #tag} shown on thumbnails
+    "ThumbnailCheckDone": False,    # startup question about FreeCAD's thumbnails asked (not on the page)
+    "ExplorerShowStep": True,       # explorer: file types shown besides FreeCAD files
+    "ExplorerShowMesh": False,      # STL, 3MF
+    "ExplorerShowPdf": False,       # PDF drawings
     "ExplorerCacheDir": "",         # explorer cache folder ("" = FreeCAD's user cache)
     "ExplorerFullScan": "session",  # full library rescan when an explorer opens (always / session / manual)
     "ShowInAssemblyWorkbench": True,
@@ -208,6 +212,17 @@ class AssemblyCompanionPreferencePage(object):
                "FreeCAD refresh their own folder; a full rescan finds files added outside "
                "of FreeCAD."))
         f.addRow(tr("Full library scan:"), self.full_scan)
+        row = QtWidgets.QWidget()
+        h = QtWidgets.QHBoxLayout(row)
+        h.setContentsMargins(0, 0, 0, 0)
+        self.show_kinds = {}
+        for key, label in (("ExplorerShowStep", "STEP"), ("ExplorerShowMesh", "STL / 3MF"),
+                           ("ExplorerShowPdf", "PDF")):
+            cb = QtWidgets.QCheckBox(label)
+            h.addWidget(cb)
+            self.show_kinds[key] = cb
+        h.addStretch(1)
+        f.addRow(tr("Explorer also shows:"), row)
         row = QtWidgets.QWidget()
         h = QtWidgets.QHBoxLayout(row)
         h.setContentsMargins(0, 0, 0, 0)
@@ -405,6 +420,8 @@ class AssemblyCompanionPreferencePage(object):
         self.new_dir.edit.setText(get("NewPartDir"))
         self.cache_dir.edit.setText(get("ExplorerCacheDir"))
         self._show_cache()
+        for key, cb in self.show_kinds.items():
+            cb.setChecked(get(key))
         i = self.full_scan.findData(get("ExplorerFullScan"))
         self.full_scan.setCurrentIndex(i if i >= 0 else 0)
         self.prefix.setText(get("NewPartPrefix"))
@@ -436,6 +453,8 @@ class AssemblyCompanionPreferencePage(object):
         put("LocalMasterDir", new)
         put("NewPartDir", self.new_dir.edit.text().strip())
         put("ExplorerFullScan", self.full_scan.currentData())
+        for key, cb in self.show_kinds.items():
+            put(key, cb.isChecked())
         self._change_cache_dir(self.cache_dir.edit.text().strip())
         put("NewPartPrefix", self.prefix.text().strip())
         put("NewPartDigits", self.digits.value())

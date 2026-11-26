@@ -99,6 +99,53 @@ def next_number(folder, prefix, digits=3):
     return used + 1
 
 
+_PREFIXED = re.compile(r"^([A-Za-z]+)_\d+")
+
+
+def folder_prefix(folder):
+    """Letter prefix of a working folder: the one its part files use
+    (AB_001a_..., the most frequent), else the leading capitals of the folder
+    name (GI_MiniEtau -> GI), else "". The prefix belongs to the folder:
+    it never changes from one new file to the next."""
+    counts = {}
+    try:
+        for name in os.listdir(folder):
+            m = _PREFIXED.match(name)
+            if m and name.lower().endswith(".fcstd"):
+                counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+    except OSError:
+        pass
+    if counts:
+        return max(sorted(counts), key=lambda k: counts[k])
+    # capitals only: a folder "new_parts" has no prefix
+    m = re.match(r"^([A-Z]{1,4})_", os.path.basename(os.path.normpath(folder or "")))
+    return m.group(1) if m else ""
+
+
+def fit_view_later(doc):
+    """Fit the 3D view of `doc` once the GUI has shown it (as V, F)."""
+    try:
+        from PySide import QtCore
+    except ImportError:
+        from PySide6 import QtCore
+    import FreeCADGui as Gui
+    name = doc.Name
+
+    def fit():
+        try:
+            if name in App.listDocuments():
+                view = Gui.getDocument(name).ActiveView
+                view.viewIsometric()
+                view.fitAll()
+        except Exception:
+            pass
+    QtCore.QTimer.singleShot(200, fit)
+
+
+def default_prefix(folder):
+    return folder_prefix(folder) or prefs.get("NewPartLastPrefix") or prefs.get("NewPartPrefix")
+
+
 # ----------------------------------------------------------------------
 #  Selection -> binder supports
 # ----------------------------------------------------------------------
@@ -284,11 +331,12 @@ class NewPartPanel(panel_model.PanelModel):
         self.hint = tr("A new file is created with a Body holding a SubShapeBinder of the "
                        "{n} selected element(s).").format(n=len(keys))
         P = panel_model.Param
-        self.add(P("folder", tr("Working folder:"), "path", self._default_folder(asm_doc),
-                   mode="dir"))
-        self.add(P("prefix", tr("Prefix:"), "text",
-                   prefs.get("NewPartLastPrefix") or prefs.get("NewPartPrefix"),
-                   placeholder=tr("e.g. AB")))
+        folder = self._default_folder(asm_doc)
+        self.add(P("folder", tr("Working folder:"), "path", folder, mode="dir"))
+        self.add(P("prefix", tr("Prefix:"), "text", default_prefix(folder),
+                   placeholder=tr("e.g. AB"),
+                   tip=tr("Letters of the working folder (taken from its part files, or from "
+                          "its name)")))
         self.add(P("number", tr("Number:"), "int", 0, min=0, max=10 ** self.digits - 1,
                    tip=tr("First number not used by this prefix in the working folder")))
         self.add(P("revision", tr("Revision:"), "text", prefs.get("NewPartRevision")))
@@ -346,6 +394,10 @@ class NewPartPanel(panel_model.PanelModel):
         self.values["preview"] = text + ("  —  " + why if why else "")
 
     def changed(self, name):
+        if name == "folder":
+            fp = folder_prefix(self.values["folder"].strip())
+            if fp:
+                self.values["prefix"] = fp
         if name in ("folder", "prefix"):
             self._next_free()
         elif name == "mode":
@@ -413,11 +465,12 @@ def new_part_from_selection(doc=None, keys=None):
         _log(tr("inserted into “{target}”.").format(
             target=parent.Label if parent is not None else doc.Label))
 
-    # Leave the user in the new part, ready to model
+    # Leave the user in the new part, ready to model, the binder in view
     try:
         Gui.getDocument(new_doc.Name).ActiveView.setActiveObject("pdbody", body)
     except Exception:
         pass
+    fit_view_later(new_doc)
     if model.values["switch_wb"]:
         try:
             Gui.activateWorkbench("PartDesignWorkbench")

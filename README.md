@@ -35,6 +35,7 @@ The toolbar and the menu follow the workflow, one group per theme
 | Durable | Freeze parts, Relink to sources, Outdated frozen parts, Check frozen assembly, Delete part joints (menu: Repair) |
 | Large assemblies | Make lightweight, Restore full components, Open source file |
 | Reports | Bill of materials, Check collisions, Archive |
+| Accessories | Check dependencies, Generate thumbnails |
 | Finishing | Group fasteners with their body, Align elements, Reactivate assembly |
 
 ### Durable assemblies
@@ -54,6 +55,8 @@ The toolbar and the menu follow the workflow, one group per theme
 | **Open source file** | Opens the real file of the selected component (lightweight, frozen or linked) to work on it. |
 | **Repair frozen copies** | Cleans copies made by early versions. |
 | **Closing a source file** | When a file still used by linked (not frozen) parts of an open assembly is closed — which makes those parts vanish — a warning lists them and offers to freeze them (the file is reopened in the background, the parts are frozen, the file is closed again) or to reopen the file. Can be turned off in the preferences. |
+| **Check dependencies** | Explains FreeCAD's question *"The file contains external dependencies. Do you want to save the dependent files, too?"*: lists the files the document depends on (directly or through another file), which are marked modified (often a file opened in the background to read a part), hidden or partially loaded, what changed in them and which objects use them; save them, or ignore their changes. |
+| **Generate thumbnails** | Gives the FreeCAD files of a folder a 256 px thumbnail for the explorer (each file opened, isometric view fitted, saved, closed; open documents skipped). Works on a **copy** of the folder by default: saving rewrites the files with the running FreeCAD version, which an older FreeCAD may not open. On first use the workbench also offers to turn on FreeCAD's own 256 px thumbnails when they are off. |
 | **Reactivate assembly** | Unlocks an assembly that can no longer be activated (Assembly commands greyed out, double-click does nothing): closes a stuck task panel, leaves a pending edit, clears stale active objects, then activates the selected assembly. Reports what it found in the report view. |
 
 Workflow for a modified part: *select it → Relink → edit the source → fix joints → Freeze.*
@@ -70,7 +73,7 @@ Workflow for a modified part: *select it → Relink → edit the source → fix 
 | **Extract bodies** | Copies each selected Body with its whole tree (sketches, features, datums, spreadsheets used by its expressions) into its own new file, named like the new parts (`PREFIX_NNNr_<body>.FCStd`): a clean file from a crowded tree. SubShapeBinders become independent and attachments to other objects are removed (placement kept), so the new file stands alone; what still points outside is reported. Optionally replaces the bodies in the assembly by the new parts, joints kept. |
 | **Replace component** | Points the selected component to an object of another file — the next revision of its source file (`AB_001a` → `AB_001b`) is proposed automatically, the object with the same internal name is preselected — keeping its place and joints. Frozen components are frozen again from the new file; other instances of the same part can be replaced in the same step. |
 | **Import STEP as part** | Imports a STEP file as one Std_Part: the import groups created by FreeCAD's STEP importer become Parts, so every element is visible in the assembly and can carry joints. Saved in a new FreeCAD file next to the assembly (recommended) or created in the assembly document, then inserted into the active assembly. Also from the explorer (STEP files are listed: click or right-click to insert). |
-| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). Right-click a folder header to refresh only that folder or to add it to the **favorites** (pinned on top, ★ menu, "Favorites only" filter); right-click a card or a folder to give it a **tag** (emoji or short #tag shown on the thumbnail). Favorites and tags are kept in the user preferences, not in the folders. Files saved from FreeCAD refresh their own folder. |
+| **Local parts explorer** | Same thumbnail browser in a central tab; click to open. Fast on large network folders (scan and thumbnail cache, background loading). Right-click a folder header to refresh only that folder or to add it to the **favorites** (pinned on top, ★ menu, "Favorites only" filter); right-click a card or a folder to give it a **tag** (emoji or short #tag shown on the thumbnail). Favorites and tags are kept in the user preferences, not in the folders. STEP, STL / 3MF (drawn preview) and PDF files (first page, with poppler's `pdftoppm`) can be shown too ("Also show"). Files saved from FreeCAD refresh their own folder. |
 | **Align elements** | Place a body by clicking an element on it, then on another body; flip, offset, rotation, optional gizmo. Ideal for static assemblies in a Std_Part. |
 | **Check collisions** | Splits the assembly into elementary parts (through Links, frozen or linked Parts, sub-assemblies) and intersects the pairs whose bounding boxes overlap: interferences are listed (a click selects the two parts) and shown as red volumes. Fasteners can be left out. |
 | **Selection sets** | Named selection sets saved in the document: filter by name / size / volume, isolate, transparency, union / intersection / difference, new part from the set. With **Keep faces, edges and vertices** checked, a set stores the chosen elements themselves (marked ◆) and selects them again; **Shape for TechDraw** turns a set into a SubShapeBinder of only those elements, to draw just what matters (no screw threads or cosmetic details). Opening the panel leaves the assembly edit mode so faces, edges and vertices can be picked. Made for exploded STEP files and large assemblies. |
@@ -171,7 +174,7 @@ Every function is covered by the automatic tests (FreeCAD 1.1.4, 26.3 and the we
 | Freeze sub-assemblies and imported STEP groups, "one solid per component" mode | experimental |
 | Bill of materials by sub-assembly (hierarchical) | experimental |
 | Import STEP as part | experimental |
-| Extract bodies, new file | experimental |
+| Extract bodies, new file, check dependencies, generate thumbnails | experimental |
 | Explorer favorites and tags, configurable cache folder | experimental |
 | QML panels (generic panels with widgets fallback) | experimental |
 
