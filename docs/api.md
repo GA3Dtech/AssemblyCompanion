@@ -200,3 +200,22 @@ App::Part labelled `part` (None: no container) holding an empty
 PartDesign Body labelled `body` (None: no Body; at the root without a
 container). The document stays open.
 -> {"path", "document", "part", "body"}
+
+### `analyze_dependencies(doc)`
+
+Documents `doc` depends on (directly or through another file) and why
+FreeCAD may ask to save them with it. -> [{"document", "label", "file",
+"open_in_tab", "partial", "modified", "touched": [labels], "used_by":
+[object names of doc], "via": label of the linking document}] (modified
+first)
+
+### `save_dependencies(doc, names=None)`
+
+Save the dependencies `names` of `doc` (None = every modified one).
+-> [saved document names]
+
+### `ignore_dependency_changes(doc, names=None)`
+
+Clear the modified flag of the dependencies `names` of `doc` (None =
+every modified one), so FreeCAD stops asking to save them; their changes
+in memory are not saved (GUI only). -> [document names]

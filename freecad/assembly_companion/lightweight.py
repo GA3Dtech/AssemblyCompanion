@@ -743,7 +743,7 @@ def open_source_command(doc=None):
         # close it (its linked parts would vanish); load what is missing of
         # THIS file only (a partial document cannot be edited) and give it a view
         try:
-            if d.isPartial():
+            if getattr(d, "Partial", False):
                 d.restore()
         except Exception:
             pass

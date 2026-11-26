@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Check dependencies (Accessories): why FreeCAD asks "The file contains
+  external dependencies. Do you want to save the dependent files, too?" -
+  the files the document depends on, modified / hidden / partial, what
+  changed, which objects use them; save them or ignore their changes. API
+  `analyze_dependencies`, `save_dependencies`, `ignore_dependency_changes`.
+
+### Fixed
+- Open source file: a document partially loaded for the assembly was never
+  loaded completely (wrong attribute name), so it could not be edited.
+
 ### Changed
 - Icons: "Insert component (visual)" shows the explorer folder with a part
   coming out of it; "Open source file" (a page with an open arrow) no longer

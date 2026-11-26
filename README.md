@@ -35,6 +35,7 @@ The toolbar and the menu follow the workflow, one group per theme
 | Durable | Freeze parts, Relink to sources, Outdated frozen parts, Check frozen assembly, Delete part joints (menu: Repair) |
 | Large assemblies | Make lightweight, Restore full components, Open source file |
 | Reports | Bill of materials, Check collisions, Archive |
+| Accessories | Check dependencies |
 | Finishing | Group fasteners with their body, Align elements, Reactivate assembly |
 
 ### Durable assemblies
@@ -54,6 +55,7 @@ The toolbar and the menu follow the workflow, one group per theme
 | **Open source file** | Opens the real file of the selected component (lightweight, frozen or linked) to work on it. |
 | **Repair frozen copies** | Cleans copies made by early versions. |
 | **Closing a source file** | When a file still used by linked (not frozen) parts of an open assembly is closed — which makes those parts vanish — a warning lists them and offers to freeze them (the file is reopened in the background, the parts are frozen, the file is closed again) or to reopen the file. Can be turned off in the preferences. |
+| **Check dependencies** | Explains FreeCAD's question *"The file contains external dependencies. Do you want to save the dependent files, too?"*: lists the files the document depends on (directly or through another file), which are marked modified (often a file opened in the background to read a part), hidden or partially loaded, what changed in them and which objects use them; save them, or ignore their changes. |
 | **Reactivate assembly** | Unlocks an assembly that can no longer be activated (Assembly commands greyed out, double-click does nothing): closes a stuck task panel, leaves a pending edit, clears stale active objects, then activates the selected assembly. Reports what it found in the report view. |
 
 Workflow for a modified part: *select it → Relink → edit the source → fix joints → Freeze.*
