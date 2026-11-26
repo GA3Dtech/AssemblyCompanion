@@ -262,6 +262,7 @@
   "Skin": "Pelle",
   "Lightweight: {n} component(s) restored.": "Alleggerimento: {n} componente/i ripristinato/i.",
   "Lightweight: “{name}” -> {n} instance(s), skeleton of {e} element(s), skin of {f} facets.": "Alleggerimento: «{name}» -> {n} istanza/e, scheletro di {e} elemento/i, pelle di {f} faccette.",
+  "Open source: {file} also holds {n} other part(s) ({names}): the whole file is loaded. “Extract bodies” gives one file per part.": "Apri sorgente: {file} contiene anche {n} altro/i pezzo/i ({names}): viene caricato tutto il file. «Estrai i corpi» dà un file per pezzo.",
   "Lightweight: “{name}” has no shape, skipped.": "Alleggerimento: «{name}» non ha forma, ignorato.",
   "Lightweight: source of “{name}” not found ({file}).": "Alleggerimento: sorgente di «{name}» non trovata ({file}).",
   "Lightweight: cannot write {obj}.{prop}: {error}": "Alleggerimento: impossibile scrivere {obj}.{prop}: {error}",

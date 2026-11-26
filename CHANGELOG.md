@@ -15,6 +15,10 @@ All notable changes to this project are documented here. The format follows
   folder (from its part files, else from its name, e.g. GI_MiniEtau -> GI)
   and changes only with the folder.
 - New part from selection: the view of the new part is fitted (as V, F).
+- Open source file: only the source file is loaded; the source part is
+  selected and the view fitted to it (nothing is hidden: that would mark the
+  file modified). When the file holds other parts too, a message says so
+  and points to "Extract bodies".
 
 ### Notes
 - FreeCAD regression upstream (FreeCAD/FreeCAD#34357, Blocker, milestone

@@ -262,6 +262,7 @@
   "Skin": "Haut",
   "Lightweight: {n} component(s) restored.": "Leicht: {n} Komponente(n) wiederhergestellt.",
   "Lightweight: “{name}” -> {n} instance(s), skeleton of {e} element(s), skin of {f} facets.": "Leicht: „{name}“ -> {n} Instanz(en), Skelett aus {e} Element(en), Haut aus {f} Facetten.",
+  "Open source: {file} also holds {n} other part(s) ({names}): the whole file is loaded. “Extract bodies” gives one file per part.": "Quelle öffnen: {file} enthält auch {n} weitere(s) Teil(e) ({names}): die ganze Datei wird geladen. „Körper extrahieren“ ergibt eine Datei pro Teil.",
   "Lightweight: “{name}” has no shape, skipped.": "Leicht: „{name}“ hat keine Form, übersprungen.",
   "Lightweight: source of “{name}” not found ({file}).": "Leicht: Quelle von „{name}“ nicht gefunden ({file}).",
   "Lightweight: cannot write {obj}.{prop}: {error}": "Leicht: {obj}.{prop} kann nicht geschrieben werden: {error}",

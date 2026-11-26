@@ -262,6 +262,7 @@
   "Skin": "Piel",
   "Lightweight: {n} component(s) restored.": "Aligerado: {n} componente(s) restaurado(s).",
   "Lightweight: “{name}” -> {n} instance(s), skeleton of {e} element(s), skin of {f} facets.": "Aligerado: «{name}» -> {n} instancia(s), esqueleto de {e} elemento(s), piel de {f} facetas.",
+  "Open source: {file} also holds {n} other part(s) ({names}): the whole file is loaded. “Extract bodies” gives one file per part.": "Abrir origen: {file} contiene también {n} otra(s) pieza(s) ({names}): se carga todo el archivo. «Extraer cuerpos» da un archivo por pieza.",
   "Lightweight: “{name}” has no shape, skipped.": "Aligerado: «{name}» no tiene forma, se omite.",
   "Lightweight: source of “{name}” not found ({file}).": "Aligerado: no se encuentra el origen de «{name}» ({file}).",
   "Lightweight: cannot write {obj}.{prop}: {error}": "Aligerado: no se puede escribir {obj}.{prop}: {error}",
