@@ -6,6 +6,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- Icons: "Insert component (visual)" shows the explorer folder with a part
+  coming out of it; "Open source file" (a page with an open arrow) no longer
+  looks like "Archive"; icons on the "New part…" and "Shape for TechDraw"
+  buttons of the selection sets.
+- New part / new file / extract: the prefix is the one of the working
+  folder (from its part files, else from its name, e.g. GI_MiniEtau -> GI)
+  and changes only with the folder.
+- New part from selection: the view of the new part is fitted (as V, F).
+
 ### Notes
 - FreeCAD regression upstream (FreeCAD/FreeCAD#34357, Blocker, milestone
   27.1): since commit 24ea8589a FreeCAD saves links to other files with

@@ -73,11 +73,12 @@ class NewFilePanel(panel_model.PanelModel):
         self.hint = tr("A new empty part file named like the other parts of the project, "
                        "with a container and a Body ready to model.")
         P = panel_model.Param
-        self.add(P("folder", tr("Working folder:"), "path",
-                   new_part.NewPartPanel._default_folder(ref_doc), mode="dir"))
-        self.add(P("prefix", tr("Prefix:"), "text",
-                   prefs.get("NewPartLastPrefix") or prefs.get("NewPartPrefix"),
-                   placeholder=tr("e.g. AB")))
+        folder = new_part.NewPartPanel._default_folder(ref_doc)
+        self.add(P("folder", tr("Working folder:"), "path", folder, mode="dir"))
+        self.add(P("prefix", tr("Prefix:"), "text", new_part.default_prefix(folder),
+                   placeholder=tr("e.g. AB"),
+                   tip=tr("Letters of the working folder (taken from its part files, or from "
+                          "its name)")))
         self.add(P("number", tr("Number:"), "int", 0, min=0, max=10 ** self.digits - 1,
                    tip=tr("First number not used by this prefix in the working folder")))
         self.add(P("revision", tr("Revision:"), "text", prefs.get("NewPartRevision")))
@@ -120,6 +121,10 @@ class NewFilePanel(panel_model.PanelModel):
 
     def changed(self, name):
         v = self.values
+        if name == "folder":
+            fp = new_part.folder_prefix(v["folder"].strip())
+            if fp:
+                v["prefix"] = fp
         if name in ("folder", "prefix"):
             self._next_free()
         elif name == "description":

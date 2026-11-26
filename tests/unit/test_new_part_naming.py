@@ -34,3 +34,17 @@ def test_next_number(tmp_path):
 def test_next_number_without_prefix(tmp_path):
     (tmp_path / "003b_Plate.FCStd").write_text("")
     assert new_part.next_number(str(tmp_path), "") == 4
+
+
+def test_folder_prefix(tmp_path):
+    from freecad.assembly_companion import new_part
+    work = tmp_path / "GI_MiniEtau"
+    work.mkdir()
+    assert new_part.folder_prefix(str(work)) == "GI"            # from the folder name
+    for n in ("AB_001a_x.FCStd", "AB_002a_y.FCStd", "CD_001a_z.FCStd", "AB_003a.step"):
+        (work / n).touch()
+    assert new_part.folder_prefix(str(work)) == "AB"            # files win, most used
+    plain = tmp_path / "parts"
+    plain.mkdir()
+    assert new_part.folder_prefix(str(plain)) == ""
+    assert new_part.folder_prefix(str(tmp_path / "missing")) == ""
